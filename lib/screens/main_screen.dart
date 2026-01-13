@@ -14,8 +14,9 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _index = 0;
+  
+  late PageController _pageController;
 
-  // Lista completa de todos os ecrãs do projeto
   final List<Widget> _pages = [
     const HomeScreen(),
     const CameraScreen(),
@@ -25,18 +26,39 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _index);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Mantém o estado dos ecrãs ao navegar (opcional, mas recomendado)
-      body: IndexedStack(
-        index: _index,
+      body: PageView(
+        controller: _pageController,
         children: _pages,
+        onPageChanged: (i) {
+          setState(() {
+            _index = i;
+          });
+        },
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) {
           setState(() {
             _index = i;
+            _pageController.animateToPage(
+              i,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
           });
         },
         destinations: const [
