@@ -1,7 +1,9 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../components/add_schedule_sheet.dart';
 import '../utils/dialogs.dart';
+import '../services/schedule_service.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -11,10 +13,7 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  final List<Map<String, dynamic>> schedules = [
-    {'time': '07:00', 'active': true, 'days': 'Segunda a Domingo'},
-    {'time': '18:00', 'active': true, 'days': 'Segunda a Domingo'},
-  ];
+  final ScheduleService _scheduleService = ScheduleService();
 
   @override
   Widget build(BuildContext context) {
@@ -26,40 +25,76 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         title: const Text('Horários Programados'),
         centerTitle: true,
       ),
-      body: schedules.isEmpty
-          ? _buildEmptyState(colorScheme)
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: schedules.length,
-              itemBuilder: (context, index) {
-                final s = schedules[index];
+      body: StreamBuilder<DatabaseEvent>(
+        stream: _scheduleService.getSchedulesStream(),
+        builder: (context, snapshot) {
+          // 1. Tratamento de Erro
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Erro ao carregar horários: ${snapshot.error}'),
+            );
+          }
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Dismissible(
-                    key: UniqueKey(),
-                    direction: DismissDirection.endToStart,
-                    confirmDismiss: (direction) async {
-                      HapticFeedback.heavyImpact();
-                      // CHAMADA DO DIÁLOGO À PARTE
-                      return await AppDialogs.showDeleteConfirmation(context);
-                    },
-                    onDismissed: (_) {
-                      setState(() => schedules.removeAt(index));
-                      HapticFeedback.lightImpact();
+          // 2. Estado de Carregamento
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // 3. Extração e Conversão dos Dados
+          final data =
+              snapshot.data?.snapshot.value as Map<dynamic, dynamic>? ?? {};
+
+          final schedulesList = data.entries.map((e) {
+            return {'id': e.key, ...Map<String, dynamic>.from(e.value as Map)};
+          }).toList();
+
+          // Ordenar por hora (ex: 07:00 vem antes de 18:00)
+          schedulesList.sort(
+            (a, b) => a['time'].toString().compareTo(b['time'].toString()),
+          );
+
+          // 4. Estado Vazio
+          if (schedulesList.isEmpty) {
+            return _buildEmptyState(colorScheme);
+          }
+
+          // 5. Lista de Horários
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: schedulesList.length,
+            itemBuilder: (context, index) {
+              final s = schedulesList[index];
+              final String scheduleId = s['id'];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Dismissible(
+                  key: Key(scheduleId), // Usar o ID real do Firebase como chave
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) async {
+                    HapticFeedback.heavyImpact();
+                    return await AppDialogs.showDeleteConfirmation(context);
+                  },
+                  onDismissed: (_) async {
+                    await _scheduleService.deleteSchedule(scheduleId);
+                    HapticFeedback.lightImpact();
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Horário removido'),
+                          content: Text('Horário removido com sucesso'),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
-                    },
-                    background: _buildDeleteBackground(colorScheme),
-                    child: _buildScheduleCard(s, index, context),
-                  ),
-                );
-              },
-            ),
+                    }
+                  },
+                  background: _buildDeleteBackground(colorScheme),
+                  child: _buildScheduleCard(s, context),
+                ),
+              );
+            },
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _handleAddNewSchedule(context),
         label: const Text('Novo Horário'),
@@ -68,34 +103,46 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
-  // --- Widgets Auxiliares para manter o build() limpo ---
+  // --- Construção do Card de Horário ---
+  Widget _buildScheduleCard(Map<String, dynamic> s, BuildContext context) {
+    final bool isActive = s['active'] ?? false;
+    final String createdBy = s['createdByEmail'] ?? 'Desconhecido';
 
-  Widget _buildScheduleCard(
-    Map<String, dynamic> s,
-    int index,
-    BuildContext context,
-  ) {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
         onTap: () async {
+          // Passamos os dados atuais para edição
           final result = await AddScheduleSheet.show(context, initialData: s);
-          if (result != null) setState(() => schedules[index] = result);
+          if (result != null) {
+            await _scheduleService.saveSchedule(result, id: s['id']);
+          }
         },
         leading: Icon(
           Icons.alarm,
-          color: s['active'] ? Colors.green : Colors.grey,
+          color: isActive ? Colors.green : Colors.grey,
+          size: 28,
         ),
         title: Text(
-          s['time'],
+          s['time'] ?? '--:--',
           style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(s['days']),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s['days'] ?? 'Sem dias definidos'),
+            const SizedBox(height: 4),
+            Text(
+              'Por: $createdBy',
+              style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
         trailing: Switch(
-          value: s['active'],
-          onChanged: (val) {
+          value: isActive,
+          onChanged: (val) async {
             HapticFeedback.lightImpact();
-            setState(() => s['active'] = val);
+            await _scheduleService.toggleStatus(s['id'], val);
           },
         ),
       ),
@@ -121,7 +168,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         children: [
           Icon(Icons.event_busy, size: 80, color: colorScheme.outlineVariant),
           const SizedBox(height: 16),
-          const Text('Nenhum horário agendado', style: TextStyle(fontSize: 18)),
+          const Text(
+            'Nenhum horário agendado',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          ),
+          const Text(
+            'Crie um horário para o robô atuar.',
+            style: TextStyle(color: Colors.grey),
+          ),
         ],
       ),
     );
@@ -130,10 +184,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<void> _handleAddNewSchedule(BuildContext context) async {
     final result = await AddScheduleSheet.show(context);
     if (result != null) {
-      setState(() {
-        schedules.add(result);
-        schedules.sort((a, b) => a['time'].compareTo(b['time']));
-      });
+      await _scheduleService.saveSchedule(result);
     }
   }
 }
