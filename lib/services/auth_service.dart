@@ -3,7 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 
-import 'package:agromotion/components/google_button_stub.dart'
+import 'google_button_stub.dart'
     if (dart.library.js_util) 'google_button_web.dart';
 
 class AuthService {
