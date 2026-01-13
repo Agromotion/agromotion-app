@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "447251651704",
+    "firebase_url": "https://agromotion-8a7f8-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "agromotion-8a7f8",
+    "storage_bucket": "agromotion-8a7f8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:447251651704:android:9d5ade755ab6852748218d",
+        "android_client_info": {
+          "package_name": "com.example.agromotion"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "447251651704-t7a47686npj3lo6esjl09vlvem78n6mp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1TjVU-IELdqjpr3sd-bR4aTBj5UARAyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "447251651704-t7a47686npj3lo6esjl09vlvem78n6mp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

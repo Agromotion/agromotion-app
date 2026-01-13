@@ -1,5 +1,10 @@
+import 'package:agromotion/components/login/primary_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../components/login_painters.dart';
+import '../components/login/login_text_field.dart';
+import '../components/login/social_login_button.dart';
+import '../services/auth_service.dart';
 import 'main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -11,29 +16,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
-  void _handleFirebaseLogin() {
-    // Aqui vais usar FirebaseAuth.instance.signInWithEmailAndPassword
-    print("Login com Email: ${_emailController.text}");
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MainScreen()),
-    );
-  }
-
-  void _handleGoogleLogin() {
-    // Lógica do pacote google_sign_in
-    print("Login com Google");
-  }
-
-  void _handleMicrosoftLogin() {
-    // Lógica do OAuthProvider("microsoft.com")
-    print("Login com Microsoft");
-  }
-
+  final AuthService _authService = AuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   late AnimationController _controller;
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -41,15 +30,55 @@ class _LoginScreenState extends State<LoginScreen>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
-    )..repeat(); // Inicia o loop infinito
+    )..repeat();
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _controller.dispose(); // Importante descartar o controller
+    _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleFirebaseLogin() async {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty) {
+      _showSnackBar("Por favor, preenche todos os campos.", isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    HapticFeedback.mediumImpact();
+
+    final result = await _authService.login(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (result == null) {
+        HapticFeedback.selectionClick();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
+      } else {
+        HapticFeedback.vibrate();
+        _showSnackBar(result, isError: true);
+      }
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -59,226 +88,137 @@ class _LoginScreenState extends State<LoginScreen>
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // O AnimatedBuilder é o segredo: ele ouve o controller e redesenha as ondas
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Stack(
-            children: [
-              // Onda do Topo
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: CustomPaint(
-                  size: Size(size.width, 180),
-                  painter: AnimatedWavePainter(
-                    animationValue: _controller.value,
-                    isTop: true,
-                    color1: Colors.green[300]!,
-                    color2: Colors.green[100]!,
+      body: Stack(
+        children: [
+          // Ondas Animadas
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) => Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: CustomPaint(
+                    size: Size(size.width, 180),
+                    painter: AnimatedWavePainter(
+                      animationValue: _controller.value,
+                      isTop: true,
+                      color1: Colors.green[300]!,
+                      color2: Colors.green[100]!,
+                    ),
                   ),
                 ),
-              ),
-              // Onda do Fundo
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: CustomPaint(
-                  size: Size(size.width, 180),
-                  painter: AnimatedWavePainter(
-                    animationValue:
-                        -_controller.value, // Negativo para sentido oposto
-                    isTop: false,
-                    color1: Colors.green[300]!,
-                    color2: Colors.green[100]!,
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: CustomPaint(
+                    size: Size(size.width, 180),
+                    painter: AnimatedWavePainter(
+                      animationValue: -_controller.value,
+                      isTop: false,
+                      color1: Colors.green[300]!,
+                      color2: Colors.green[100]!,
+                    ),
                   ),
                 ),
-              ),
-              // Passamos o formulário como child ou widget fixo para não ser afetado
-              // pelo rebuild desnecessário, embora aqui o builder envolva tudo.
-              _buildFormContent(theme),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // Extraí o conteúdo para manter o build mais limpo
-  Widget _buildFormContent(ThemeData theme) {
-    return SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo e Título
-              Icon(
-                Icons.agriculture_rounded,
-                size: 70,
-                color: theme.primaryColor,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'AgroMotion',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // Campos de User/Pass
-              _buildTextField(
-                controller: _emailController,
-                hint: 'Email',
-                icon: Icons.email_outlined,
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _passwordController,
-                hint: 'Password',
-                icon: Icons.lock_outline,
-                isPassword: true,
-              ),
-
-              // Botão Login Principal
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => _handleFirebaseLogin(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.primaryColor,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Entrar',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-              _buildDivider(),
-              const SizedBox(height: 20),
-
-              // Botões de Login Social
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _socialButton(
-                    label: 'Google',
-                    iconPath: Icons
-                        .account_circle, // Idealmente usar imagem do logo Google
-                    color: Colors.red.shade400,
-                    onTap: () => _handleGoogleLogin(),
-                  ),
-                  _socialButton(
-                    label: 'Microsoft',
-                    iconPath: Icons.window,
-                    color: Colors.blue.shade700,
-                    onTap: () => _handleMicrosoftLogin(),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 40),
-              TextButton(
-                onPressed: () {},
-                child: const Text(
-                  'Não tens conta? Regista-te aqui',
-                  style: TextStyle(color: Colors.black54),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
 
-  // Helper para os campos de texto
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool isPassword = false,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: isPassword && _obscurePassword,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, size: 20),
-        suffixIcon: isPassword
-            ? IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+          // Conteúdo do Formulário
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.agriculture_rounded,
+                      size: 70,
+                      color: theme.primaryColor,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'AgroMotion',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    LoginTextField(
+                      controller: _emailController,
+                      hint: 'Email',
+                      icon: Icons.email_outlined,
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    LoginTextField(
+                      controller: _passwordController,
+                      hint: 'Password',
+                      icon: Icons.lock_outline,
+                      isPassword: true,
+                      obscurePassword: _obscurePassword,
+                      onToggleVisibility: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+
+                    const SizedBox(height: 24),
+                    PrimaryButton(
+                      label: 'Entrar',
+                      isLoading: _isLoading,
+                      onPressed: _handleFirebaseLogin,
+                    ),
+
+                    const SizedBox(height: 24),
+                    _buildDivider(),
+                    const SizedBox(height: 24),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        SocialLoginButton(
+                          label: 'Google',
+                          icon: Icons.account_circle,
+                          color: Colors.red.shade400,
+                          onTap: () {},
+                        ),
+                        SocialLoginButton(
+                          label: 'Microsoft',
+                          icon: Icons.window,
+                          color: Colors.blue.shade700,
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              )
-            : null,
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.9),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
+              ),
+            ),
+          ),
+
+          if (_isLoading)
+            Container(
+              color: Colors.black.withAlpha(20),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
       ),
     );
   }
 
-  // Linha separadora "OU"
   Widget _buildDivider() {
-    return Row(
+    return const Row(
       children: [
-        const Expanded(child: Divider()),
+        Expanded(child: Divider()),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            "OU",
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-          ),
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Text("Ou", style: TextStyle(color: Colors.grey, fontSize: 12)),
         ),
-        const Expanded(child: Divider()),
+        Expanded(child: Divider()),
       ],
-    );
-  }
-
-  // Widget do Botão Social
-  Widget _socialButton({
-    required String label,
-    required IconData iconPath,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.white,
-        ),
-        child: Row(
-          children: [
-            Icon(iconPath, color: color),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ),
     );
   }
 }
