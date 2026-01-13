@@ -1,9 +1,9 @@
+import 'package:agromotion/wrapper/auth_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
-import 'screens/login_screen.dart';
 
 class AgroMotionApp extends StatelessWidget {
   const AgroMotionApp({super.key});
@@ -27,7 +27,7 @@ class AgroMotionApp extends StatelessWidget {
       themeMode: themeProvider.themeMode,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      home: const LoginScreen(),
+      home: const AuthWrapper(),
     );
   }
 }

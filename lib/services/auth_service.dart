@@ -1,26 +1,95 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/material.dart';
+import 'package:google_sign_in_web/web_only.dart' as web;
 
 class AuthService {
   FirebaseAuth get _auth => FirebaseAuth.instance;
+  GoogleSignIn get _google => GoogleSignIn.instance;
 
-  // Obter o utilizador atual
   User? get currentUser => _auth.currentUser;
-
-  // Stream para monitorizar o estado do login (logado ou não)
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+  bool _isSigningIn = false;
 
-  // Login com Email e Senha
-  Future<String?> login(String email, String password) async {
+  Future<void> initGoogleSignIn() async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-      return null; // Sucesso
-    } on FirebaseAuthException catch (e) {
-      return e.message; // Devolve o erro
+      await _google.initialize(
+        clientId:
+            '447251651704-t7a47686npj3lo6esjl09vlvem78n6mp.apps.googleusercontent.com',
+      );
+
+      _google.authenticationEvents.listen((event) async {
+        if (event is GoogleSignInAuthenticationEventSignIn &&
+            _auth.currentUser == null) {
+          if (_isSigningIn) return;
+          _isSigningIn = true;
+
+          try {
+            final googleAuth = event.user.authentication;
+            final credential = GoogleAuthProvider.credential(
+              accessToken: googleAuth.idToken,
+              idToken: googleAuth.idToken,
+            );
+
+            await _auth.signInWithCredential(credential);
+            debugPrint("Firebase autenticado com sucesso!");
+          } finally {
+            _isSigningIn = false;
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint("Erro na inicialização: $e");
     }
   }
 
-  // Logout
+  Future<String?> login(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.message;
+    }
+  }
+
+  Future<String?> signInWithGoogle() async {
+    try {
+      final GoogleSignInAccount googleUser = await _google.authenticate();
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.idToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+      return null;
+    } catch (e) {
+      debugPrint("ERRO GOOGLE: $e");
+      return "Erro ao ligar à conta Google.";
+    }
+  }
+
+  // Método para renderizar o botão oficial na Web
+  Widget renderGoogleButton() {
+    if (kIsWeb) {
+      return web.renderButton();
+    }
+    return const SizedBox.shrink();
+  }
+
   Future<void> logout() async {
-    await _auth.signOut();
+    try {
+      if (kIsWeb) {
+        await _google.disconnect();
+      }
+      await _google.signOut();
+      await _auth.signOut();
+    } catch (e) {
+      debugPrint("Erro ao sair: $e");
+    }
   }
 }

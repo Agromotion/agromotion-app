@@ -2,6 +2,7 @@ import 'package:agromotion/theme/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../services/auth_service.dart'; // Importa o teu serviço
 import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,6 +13,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  // Instância do serviço de autenticação
+  final AuthService _authService = AuthService();
+
   String _appVersion = '0.0.0';
   String _buildNumber = '0';
   final int _currentYear = DateTime.now().year;
@@ -28,6 +32,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _appVersion = info.version;
       _buildNumber = info.buildNumber;
     });
+  }
+
+  // Função de Logout centralizada
+  Future<void> _handleLogout() async {
+    // 1. Mostrar um indicador de progresso (opcional)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // 2. Chamar o logout do Firebase e Google
+      await _authService.logout();
+
+      if (mounted) {
+        // 3. Fechar o loading
+        Navigator.of(context).pop();
+
+        // 4. Navegar para o Login limpando toda a pilha de ecrãs
+        // Isto garante que o utilizador não volta para a MainScreen ao clicar em "voltar"
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Erro ao sair da conta.')));
+      }
+    }
   }
 
   @override
@@ -70,15 +108,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
-                      ListTile(
-                        leading: const Icon(Icons.vpn_key_outlined),
-                        title: const Text('VPN / Tailscale'),
-                        subtitle: const Text('100.64.0.5 (Conectado)'),
-                        trailing: const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                        ),
-                        onTap: () {},
+                      const ListTile(
+                        leading: Icon(Icons.vpn_key_outlined),
+                        title: Text('VPN / Tailscale'),
+                        subtitle: Text('100.64.0.5 (Conectado)'),
+                        trailing: Icon(Icons.check_circle, color: Colors.green),
                       ),
                       const Divider(height: 1),
                       ListTile(
@@ -92,21 +126,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
 
                 const SizedBox(height: 32),
+
+                // Botão de Logout Atualizado
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                        (route) => false,
-                      );
-                    },
+                    onPressed: _handleLogout, // Chama a função criada acima
                     icon: const Icon(Icons.logout),
                     label: const Text('Sair da Conta'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                     ),
                   ),
                 ),
@@ -114,7 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // --- RODAPÉ COM VERSÃO E COPYRIGHT ---
+          // Rodapé
           Padding(
             padding: const EdgeInsets.only(bottom: 20, top: 10),
             child: Column(
@@ -127,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'v$_appVersion ($_buildNumber)',
+                  'Versão $_appVersion ($_buildNumber)',
                   style: Theme.of(
                     context,
                   ).textTheme.labelSmall?.copyWith(color: Colors.grey),

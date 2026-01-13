@@ -1,7 +1,12 @@
-import 'package:agromotion/components/login/primary_button.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../components/login_painters.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_auth/firebase_auth.dart';
+
+// Componentes do teu projeto
+import '../components/login/primary_button.dart';
+import '../components/login/login_painters.dart';
 import '../components/login/login_text_field.dart';
 import '../components/login/social_login_button.dart';
 import '../services/auth_service.dart';
@@ -21,12 +26,25 @@ class _LoginScreenState extends State<LoginScreen>
   final _passwordController = TextEditingController();
 
   late AnimationController _controller;
+  late StreamSubscription<User?> _authSubscription;
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+
+    _authService.initGoogleSignIn();
+    _authSubscription = _authService.authStateChanges.listen((User? user) {
+      if (user != null && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
+      }
+    });
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -38,13 +56,15 @@ class _LoginScreenState extends State<LoginScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _controller.dispose();
+    _authSubscription.cancel(); // Importante cancelar para evitar leaks
     super.dispose();
   }
 
+  // Login tradicional (Email/Password)
   Future<void> _handleFirebaseLogin() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
-      _showSnackBar("Por favor, preenche todos os campos.", isError: true);
+      _showSnackBar("Por favor, preencha todos os campos.", isError: true);
       return;
     }
 
@@ -58,16 +78,20 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (result == null) {
-        HapticFeedback.selectionClick();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
-      } else {
+      if (result != null) {
         HapticFeedback.vibrate();
         _showSnackBar(result, isError: true);
       }
+    }
+  }
+
+  // Login Google para Mobile (no Web o botão oficial trata de tudo)
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    final result = await _authService.signInWithGoogle();
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (result != null) _showSnackBar(result, isError: true);
     }
   }
 
@@ -90,42 +114,8 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Ondas Animadas
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) => Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: CustomPaint(
-                    size: Size(size.width, 180),
-                    painter: AnimatedWavePainter(
-                      animationValue: _controller.value,
-                      isTop: true,
-                      color1: Colors.green[300]!,
-                      color2: Colors.green[100]!,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: CustomPaint(
-                    size: Size(size.width, 180),
-                    painter: AnimatedWavePainter(
-                      animationValue: -_controller.value,
-                      isTop: false,
-                      color1: Colors.green[300]!,
-                      color2: Colors.green[100]!,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Ondas Animadas (Background)
+          _buildAnimatedBackground(size),
 
           // Conteúdo do Formulário
           SafeArea(
@@ -176,21 +166,24 @@ class _LoginScreenState extends State<LoginScreen>
                     _buildDivider(),
                     const SizedBox(height: 24),
 
+                    // BOTÕES SOCIAIS
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        SocialLoginButton(
-                          label: 'Google',
-                          icon: Icons.account_circle,
-                          color: Colors.red.shade400,
-                          onTap: () {},
-                        ),
-                        SocialLoginButton(
-                          label: 'Microsoft',
-                          icon: Icons.window,
-                          color: Colors.blue.shade700,
-                          onTap: () {},
-                        ),
+                        if (kIsWeb)
+                          // Na Web, renderiza o botão oficial da Google
+                          SizedBox(
+                            height: 44,
+                            child: _authService.renderGoogleButton(),
+                          )
+                        else
+                          // No Mobile, usa o teu SocialLoginButton customizado
+                          SocialLoginButton(
+                            label: 'Google',
+                            icon: Icons.account_circle,
+                            color: Colors.red.shade400,
+                            onTap: _handleGoogleLogin,
+                          ),
                       ],
                     ),
                   ],
@@ -204,6 +197,44 @@ class _LoginScreenState extends State<LoginScreen>
               color: Colors.black.withAlpha(20),
               child: const Center(child: CircularProgressIndicator()),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnimatedBackground(Size size) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: CustomPaint(
+              size: Size(size.width, 180),
+              painter: AnimatedWavePainter(
+                animationValue: _controller.value,
+                isTop: true,
+                color1: Colors.green[300]!,
+                color2: Colors.green[100]!,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: CustomPaint(
+              size: Size(size.width, 180),
+              painter: AnimatedWavePainter(
+                animationValue: -_controller.value,
+                isTop: false,
+                color1: Colors.green[300]!,
+                color2: Colors.green[100]!,
+              ),
+            ),
+          ),
         ],
       ),
     );
