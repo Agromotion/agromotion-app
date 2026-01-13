@@ -142,7 +142,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           value: isActive,
           onChanged: (val) async {
             HapticFeedback.lightImpact();
-            await _scheduleService.toggleStatus(s['id'], val);
+            await _scheduleService.toggleStatus(
+              s['id'],
+              val,
+              s['time'] ?? '--:--',
+            );
           },
         ),
       ),
