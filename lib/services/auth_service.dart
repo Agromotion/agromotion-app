@@ -3,7 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 
-import 'google_button_stub.dart'
+import '../components/login/google_button_stub.dart'
     if (dart.library.js_util) 'google_button_web.dart';
 
 class AuthService {
@@ -78,7 +78,7 @@ class AuthService {
   // Método para renderizar o botão oficial na Web
   Widget renderGoogleButton() {
     if (kIsWeb) {
-      return renderWebGoogleButton(); // Chama a função que importamos condicionalmente
+      return renderWebGoogleButton();
     }
     return const SizedBox.shrink();
   }

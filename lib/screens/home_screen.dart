@@ -3,7 +3,7 @@ import '../components/status_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-  @override
+  @override       
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
