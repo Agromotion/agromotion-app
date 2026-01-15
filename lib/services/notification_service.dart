@@ -1,13 +1,55 @@
 import 'dart:convert';
-import 'package:flutter/services.dart'; // Necessário para rootBundle
+import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:agromotion/env.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
+  final _messaging = FirebaseMessaging.instance;
   final _scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
+  AuthClient? _client;
+  String? _projectId;
+
+  Future<void> initialize() async {
+    await _messaging.requestPermission(alert: true, badge: true, sound: true);
+    _setupTokenHandlers();
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Recebida mensagem em foreground: ${message.notification?.title}');
+    });
+  }
+
+  void _setupTokenHandlers() async {
+    String? token = await _messaging.getToken(vapidKey: fcmVapidKey);
+    if (token != null) _saveTokenToDatabase(token);
+    _messaging.onTokenRefresh.listen(_saveTokenToDatabase);
+  }
+
+  void _saveTokenToDatabase(String token) {
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        FirebaseDatabase.instance.ref('user_tokens/${user.uid}').set(token);
+      }
+    });
+  }
+
+  Future<void> _prepareClient() async {
+    if (_client != null) return;
+
+    final String responseJson = await rootBundle.loadString(
+      'assets/service-account.json',
+    );
+    final data = json.decode(responseJson);
+    _projectId = data['project_id'];
+
+    final credentials = ServiceAccountCredentials.fromJson(data);
+    _client = await clientViaServiceAccount(credentials, _scopes);
+  }
 
   Future<void> sendDirectNotification({
     required String title,
@@ -15,21 +57,11 @@ class NotificationService {
     required String token,
   }) async {
     try {
-      // 1. Carregar o ficheiro JSON dos assets
-      final String responseJson = await rootBundle.loadString(
-        'assets/service-account.json',
-      );
-      final data = json.decode(responseJson);
+      await _prepareClient();
 
-      // 2. Criar credenciais e cliente
-      final credentials = ServiceAccountCredentials.fromJson(data);
-      final client = await clientViaServiceAccount(credentials, _scopes);
-
-      final String projectId = data['project_id'];
       final String url =
-          'https://fcm.googleapis.com/v1/projects/$projectId/messages:send';
+          'https://fcm.googleapis.com/v1/projects/$_projectId/messages:send';
 
-      // 3. Payload da mensagem (Adicionei suporte melhorado para Web)
       final message = {
         'message': {
           'token': token,
@@ -40,25 +72,20 @@ class NotificationService {
               'body': body,
               'icon': '/icons/Icon-192.png',
             },
-            'fcm_options': {
-              'link': '/', // Abre a app ao clicar
-            },
+            'fcm_options': {'link': '/'},
           },
         },
       };
 
-      final response = await client.post(
+      final response = await _client!.post(
         Uri.parse(url),
         body: jsonEncode(message),
       );
 
-      if (response.statusCode == 200) {
-        print('✅ Notificação direta enviada!');
-      } else {
+      if (response.statusCode != 200) {
         print('❌ Erro FCM: ${response.body}');
+        _client = null;
       }
-
-      client.close();
     } catch (e) {
       print('❌ Erro NotificationService: $e');
     }

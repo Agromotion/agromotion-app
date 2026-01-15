@@ -10,19 +10,14 @@ class AgroMotionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+    // MaterialApp recontrói na troca de tema
+    final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
       title: 'AgroMotion',
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('pt', 'PT'), // Português de Portugal
-      ],
+      localizationsDelegates: _locales,
+      supportedLocales: const [Locale('pt', 'PT')],
       locale: const Locale('pt', 'PT'),
       themeMode: themeProvider.themeMode,
       theme: AppTheme.lightTheme,
@@ -30,4 +25,10 @@ class AgroMotionApp extends StatelessWidget {
       home: const AuthWrapper(),
     );
   }
+
+  static const _locales = [
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ];
 }
