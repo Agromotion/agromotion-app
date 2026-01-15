@@ -17,7 +17,7 @@ class AnimatedWavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint1 = Paint()..color = color1;
-    final paint2 = Paint()..color = color2.withOpacity(0.6);
+    final paint2 = Paint()..color = color2.withAlpha(60);
 
     _drawWave(canvas, size, paint2, animationValue, 0.4, 10); // Onda de trás
     _drawWave(canvas, size, paint1, animationValue, 0.5, 0);  // Onda da frente
