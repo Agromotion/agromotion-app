@@ -1,0 +1,1 @@
+const String fcmVapidKey = 'O_SEU_TOKEN_AQUI';

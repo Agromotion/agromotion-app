@@ -1,3 +1,4 @@
+import 'package:agromotion/env.dart';
 import 'package:agromotion/firebase_options.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,7 +9,6 @@ import 'package:provider/provider.dart';
 import 'app.dart';
 import 'theme/theme_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:agromotion/config/env.dart';
 
 // Função para lidar com mensagens em background (Web/Android)
 @pragma('vm:entry-point')
@@ -49,9 +49,7 @@ void _setupFCM(FirebaseMessaging messaging) async {
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    String? token = await messaging.getToken(
-      vapidKey: const String.fromEnvironment('FCM_VAPID_KEY'),
-    );
+    String? token = await messaging.getToken(vapidKey: fcmVapidKey);
 
     if (token != null) {
       print("FCM Token: $token");
