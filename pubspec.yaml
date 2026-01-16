@@ -2,7 +2,7 @@ name: agromotion
 description: "App de controlo para sistema de alimentação automatizado AgroMotion."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+1
 
 environment:
   sdk: ^3.8.1
@@ -34,3 +34,35 @@ flutter:
   uses-material-design: true
   assets:
     - assets/service-account.json
+
+  fonts:
+    - family: AudibleSans
+      fonts:
+        # Regular
+        - asset: assets/AudibleSans-Rg.ttf
+        # Italic
+        - asset: assets/AudibleSans-Italic.ttf
+          style: italic
+        # Light
+        - asset: assets/AudibleSans-Lt.ttf
+          weight: 300
+        - asset: assets/AudibleSans-LightItalic.ttf
+          weight: 300
+          style: italic
+        # Medium
+        - asset: assets/AudibleSans-Md.ttf
+          weight: 500
+        # Bold (Bd)
+        - asset: assets/AudibleSans-Bd.ttf
+          weight: 700
+        # Bold Italic
+        - asset: assets/AudibleSans-BoldItalic.ttf
+          weight: 700
+          style: italic
+        # SemiBold (Sm)
+        - asset: assets/AudibleSans-Sm.ttf
+          weight: 600
+        - asset: assets/AudibleSans-SemiboldItalic.ttf
+          weight: 600
+          style: italic
+
