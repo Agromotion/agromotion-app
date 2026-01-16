@@ -156,7 +156,7 @@ class StatisticsScreen extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               colorScheme.surface,
-              colorScheme.surfaceVariant.withAlpha(50),
+              colorScheme.surfaceContainer.withAlpha(50),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
