@@ -1,4 +1,5 @@
 import 'package:agromotion/services/notification_service.dart';
+import 'package:agromotion/utils/app_logger.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -69,8 +70,8 @@ class ScheduleService {
           );
         }
       }
-    } catch (e) {
-      print("Erro ao buscar tokens para notificação: $e");
+    } catch (e, stack) {
+      AppLogger.error("Erro ao buscar tokens para notificação: ", e, stack);
     }
   }
 }

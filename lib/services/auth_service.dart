@@ -1,6 +1,7 @@
+import 'package:agromotion/utils/app_logger.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'package:agromotion/components/login/google_button_stub.dart'
@@ -35,14 +36,14 @@ class AuthService {
             );
 
             await _auth.signInWithCredential(credential);
-            debugPrint("Firebase autenticado com sucesso!");
+            AppLogger.info("Utilizador autenticado via Google Sign-In");
           } finally {
             _isSigningIn = false;
           }
         }
       });
-    } catch (e) {
-      debugPrint("Erro na inicialização: $e");
+    } catch (e, stack) {
+      AppLogger.error("Erro ao inicializar Google Sign-In", e, stack);
     }
   }
 
@@ -69,8 +70,8 @@ class AuthService {
 
       await _auth.signInWithCredential(credential);
       return null;
-    } catch (e) {
-      debugPrint("ERRO GOOGLE: $e");
+    } catch (e, stack) {
+      AppLogger.error("Erro ao ligar à conta Google", e, stack);
       return "Erro ao ligar à conta Google.";
     }
   }
@@ -90,8 +91,8 @@ class AuthService {
       }
       await _google.signOut();
       await _auth.signOut();
-    } catch (e) {
-      debugPrint("Erro ao sair: $e");
+    } catch (e, stack) {
+      AppLogger.error("Erro ao fazer logout", e, stack);
     }
   }
 }

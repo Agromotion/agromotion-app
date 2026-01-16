@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:agromotion/utils/app_logger.dart';
 import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -83,11 +84,12 @@ class NotificationService {
       );
 
       if (response.statusCode != 200) {
-        print('❌ Erro FCM: ${response.body}');
+        AppLogger.error('Erro ao enviar notificação FCM: ${response.body}');
         _client = null;
       }
     } catch (e) {
-      print('❌ Erro NotificationService: $e');
+      AppLogger.error('Erro ao enviar notificação FCM: $e');
+      _client = null;
     }
   }
 }

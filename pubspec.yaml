@@ -24,6 +24,7 @@ dependencies:
   firebase_messaging: ^16.1.0
   http: ^1.6.0
   googleapis_auth: ^2.0.0
+  logger: ^2.6.2
 
 dev_dependencies:
   flutter_test:
