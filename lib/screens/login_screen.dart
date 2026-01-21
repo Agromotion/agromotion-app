@@ -1,9 +1,11 @@
 import 'package:agromotion/components/agro_loading.dart';
 import 'package:agromotion/components/login/login_background.dart';
+import 'package:agromotion/components/login/login_footer.dart';
 import 'package:agromotion/components/login/login_text_field.dart';
 import 'package:agromotion/components/login/primary_button.dart';
 import 'package:agromotion/components/login/social_login_button.dart';
 import 'package:agromotion/screens/main_screen.dart';
+import 'package:agromotion/screens/settings_screen.dart'; // Import necessário
 import 'package:agromotion/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -83,6 +85,31 @@ class _LoginScreenState extends State<LoginScreen> {
           // Background de Vídeo
           const Positioned.fill(child: LoginBackground()),
 
+          // Botão de Definições no Topo Direito
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.settings,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+
           // Form de Login
           SafeArea(
             child: Center(
@@ -94,26 +121,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Header
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[900] : Colors.white,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
                         shape: BoxShape.circle,
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(color: Colors.black26, blurRadius: 15),
                         ],
                       ),
                       child: Image.asset(
                         'assets/logo_512.png',
-                        width: 64,
-                        height: 64,
+                        width: 90,
+                        height: 90,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    const Text(
                       'Agromotion',
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF1B5E20),
+                        color: Colors.white,
                         letterSpacing: 1.2,
                       ),
                     ),
@@ -189,6 +216,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ),
+
+          const Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 20.0),
+                child: LoginFooter(),
               ),
             ),
           ),

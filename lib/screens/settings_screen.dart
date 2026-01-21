@@ -2,7 +2,7 @@ import 'package:agromotion/theme/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../services/auth_service.dart'; // Importa o teu serviço
+import '../services/auth_service.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -13,7 +13,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Instância do serviço de autenticação
   final AuthService _authService = AuthService();
 
   String _appVersion = '0.0.0';
@@ -34,9 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // Função de Logout centralizada
   Future<void> _handleLogout() async {
-    // 1. Mostrar um indicador de progresso (opcional)
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -44,15 +41,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     try {
-      // 2. Chamar o logout do Firebase e Google
       await _authService.logout();
-
       if (mounted) {
-        // 3. Fechar o loading
         Navigator.of(context).pop();
-
-        // 4. Navegar para o Login limpando toda a pilha de ecrãs
-        // Isto garante que o utilizador não volta para a MainScreen ao clicar em "voltar"
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
@@ -71,6 +62,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    // Verifica se existe um utilizador logado
+    final bool isUserLoggedIn = _authService.currentUser != null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Definições')),
@@ -127,19 +120,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 const SizedBox(height: 32),
 
-                // Botão de Logout Atualizado
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: OutlinedButton.icon(
-                    onPressed: _handleLogout, // Chama a função criada acima
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sair da Conta'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
+                // Só mostra o botão de Logout se o utilizador estiver autenticado
+                if (isUserLoggedIn)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: OutlinedButton.icon(
+                      onPressed: _handleLogout,
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sair da Conta'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

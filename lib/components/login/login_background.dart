@@ -1,80 +1,64 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter/foundation.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'dart:ui';
 
 class LoginBackground extends StatefulWidget {
   const LoginBackground({super.key});
+
   @override
   State<LoginBackground> createState() => _LoginBackgroundState();
 }
 
 class _LoginBackgroundState extends State<LoginBackground> {
-  VideoPlayerController? _controller;
-  int _currentVideoIndex = 0;
-  bool _isChangingVideo = false;
+  late final Player _player;
+  late final VideoController _videoController;
 
-  final List<String> _videoAssets = ['assets/login_videos/video5.MP4'];
+  final List<String> _videoUrls = [
+    'https://res.cloudinary.com/dttvwjnxn/video/upload/f_auto,q_auto/v1769002678/video2_rvlrzi.mp4',
+    'https://res.cloudinary.com/dttvwjnxn/video/upload/f_auto,q_auto/v1769002677/video3_hjka7u.mp4',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _initializeAndPlay(_currentVideoIndex);
-  }
-
-  Future<void> _initializeAndPlay(int index) async {
-    final VideoPlayerController newController = VideoPlayerController.asset(
-      _videoAssets[index],
+    _player = Player(
+      configuration: const PlayerConfiguration(bufferSize: 32 * 1024 * 1024),
     );
+    _videoController = VideoController(_player);
+    _setupPlayer();
+  }
 
-    try {
-      await newController.initialize();
-      await newController.setVolume(0.0);
+  Future<void> _setupPlayer() async {
+    if (!kIsWeb) {
+      final platform = _player.platform;
 
-      if (mounted) {
-        final oldController = _controller;
-        setState(() {
-          _controller = newController;
-          _isChangingVideo = false;
-        });
-
-        _controller!.play();
-        _controller!.addListener(_videoListener);
-
-        if (oldController != null) {
-          await oldController.pause();
-          await oldController.dispose();
-        }
+      try {
+        await (platform as dynamic)?.setProperty('cache', 'yes');
+        await (platform as dynamic)?.setProperty(
+          'demuxer-max-bytes',
+          '50000000',
+        );
+        await (platform as dynamic)?.setProperty(
+          'demuxer-readahead-secs',
+          '30',
+        );
+      } catch (e) {
+        debugPrint('Erro ao configurar propriedades do motor: $e');
       }
-    } catch (e) {
-      debugPrint('Erro ao carregar vídeo: $e');
-      _playNextVideo();
     }
-  }
 
-  void _videoListener() {
-    if (_controller == null || _isChangingVideo) return;
+    final playlist = Playlist(_videoUrls.map((url) => Media(url)).toList());
 
-    // Verifica se o vídeo chegou ao fim
-    final bool isFinished =
-        _controller!.value.position >=
-        (_controller!.value.duration - const Duration(milliseconds: 500));
-
-    if (isFinished && !_controller!.value.isLooping) {
-      _isChangingVideo = true;
-      _controller!.removeListener(_videoListener);
-      _playNextVideo();
-    }
-  }
-
-  void _playNextVideo() {
-    _currentVideoIndex = (_currentVideoIndex + 1) % _videoAssets.length;
-    _initializeAndPlay(_currentVideoIndex);
+    await _player.setVolume(0);
+    await _player.setPlaylistMode(PlaylistMode.loop);
+    await _player.open(playlist);
   }
 
   @override
   void dispose() {
-    _controller?.removeListener(_videoListener);
-    _controller?.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -84,25 +68,18 @@ class _LoginBackgroundState extends State<LoginBackground> {
 
     return Stack(
       children: [
-        // Vídeo
         SizedBox.expand(
-          child: _controller != null && _controller!.value.isInitialized
-              ? FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _controller!.value.size.width,
-                    height: _controller!.value.size.height,
-                    child: VideoPlayer(_controller!),
-                  ),
-                )
-              : Container(color: isDark ? Colors.black : Colors.white),
+          child: Video(
+            controller: _videoController,
+            fit: BoxFit.cover,
+            controls: NoVideoControls,
+            fill: isDark ? Colors.black : Colors.white,
+          ),
         ),
-
-        // Blur e Overlay
         Positioned.fill(
           child: ClipRect(
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 14.0, sigmaY: 14.0),
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
               child: Container(
                 color: isDark
                     ? Colors.black.withAlpha(40)
