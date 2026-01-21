@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 class PrimaryButton extends StatelessWidget {
   final String label;
-  final VoidCallback? onPressed;
   final bool isLoading;
+  final VoidCallback onPressed;
 
   const PrimaryButton({
     super.key,
     required this.label,
-    this.onPressed,
-    this.isLoading = false,
+    required this.isLoading,
+    required this.onPressed,
   });
 
   @override
@@ -19,30 +19,25 @@ class PrimaryButton extends StatelessWidget {
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: theme.primaryColor.withAlpha(150),
-        minimumSize: const Size(double.infinity, 55),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        elevation: 0,
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
+        disabledBackgroundColor: theme.disabledColor,
       ),
       child: isLoading
-          ? const SizedBox(
-              height: 24,
-              width: 24,
+          ? SizedBox(
+              height: 20,
+              width: 20,
               child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2.5,
+                strokeWidth: 2,
+                color: theme.colorScheme.onPrimary,
               ),
             )
           : Text(
               label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold, 
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
     );
   }

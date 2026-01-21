@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Agromotion</string>
+    <string name="widget_description">Monitor do robô Agromotion</string>
+    <string name="widget_description_bars">Monitor do robô (barras)</string>
+    <string name="widget_description_circles">Monitor do robô (circular)</string>
+</resources>

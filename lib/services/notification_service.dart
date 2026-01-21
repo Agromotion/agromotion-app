@@ -21,7 +21,7 @@ class NotificationService {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
     _setupTokenHandlers();
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Recebida mensagem em foreground: ${message.notification?.title}');
+      AppLogger.info('Recebida mensagem em foreground: ${message.notification?.title}');
     });
   }
 

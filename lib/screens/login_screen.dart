@@ -1,16 +1,13 @@
-import 'dart:async';
+import 'package:agromotion/components/agro_loading.dart';
+import 'package:agromotion/components/login/login_background.dart';
+import 'package:agromotion/components/login/login_text_field.dart';
+import 'package:agromotion/components/login/primary_button.dart';
+import 'package:agromotion/components/login/social_login_button.dart';
+import 'package:agromotion/screens/main_screen.dart';
+import 'package:agromotion/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:firebase_auth/firebase_auth.dart';
-
-// Componentes do teu projeto
-import '../components/login/primary_button.dart';
-import '../components/login/login_painters.dart';
-import '../components/login/login_text_field.dart';
-import '../components/login/social_login_button.dart';
-import '../services/auth_service.dart';
-import 'main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,79 +16,48 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  late AnimationController _controller;
-  late StreamSubscription<User?> _authSubscription;
-
   bool _obscurePassword = true;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-
     _authService.initGoogleSignIn();
-    _authSubscription = _authService.authStateChanges.listen((User? user) {
-      if (user != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
-      }
-    });
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _controller.dispose();
-    _authSubscription.cancel(); // Importante cancelar para evitar leaks
     super.dispose();
   }
 
-  // Login tradicional (Email/Password)
-  Future<void> _handleFirebaseLogin() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.trim().isEmpty) {
-      _showSnackBar("Por favor, preencha todos os campos.", isError: true);
-      return;
-    }
-
+  Future<void> _processLogin(Future<String?> loginTask) async {
     setState(() => _isLoading = true);
-    HapticFeedback.mediumImpact();
+    if (!kIsWeb) HapticFeedback.mediumImpact();
 
-    final result = await _authService.login(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
+    final minimumDisplayTime = Future.delayed(
+      const Duration(milliseconds: 3500),
     );
+    final results = await Future.wait([loginTask, minimumDisplayTime]);
+    final String? error = results[0] as String?;
 
     if (mounted) {
-      setState(() => _isLoading = false);
-      if (result != null) {
-        HapticFeedback.vibrate();
-        _showSnackBar(result, isError: true);
+      if (error != null) {
+        setState(() => _isLoading = false);
+        if (!kIsWeb) HapticFeedback.vibrate();
+        _showSnackBar(error, isError: true);
+      } else {
+        if (!kIsWeb) HapticFeedback.lightImpact();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
       }
-    }
-  }
-
-  // Login Google para Mobile (no Web o botão oficial trata de tudo)
-  Future<void> _handleGoogleLogin() async {
-    setState(() => _isLoading = true);
-    final result = await _authService.signInWithGoogle();
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (result != null) _showSnackBar(result, isError: true);
     }
   }
 
@@ -108,83 +74,118 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final size = MediaQuery.of(context).size;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Ondas Animadas (Background)
-          _buildAnimatedBackground(size),
+          // Background de Vídeo
+          const Positioned.fill(child: LoginBackground()),
 
-          // Conteúdo do Formulário
+          // Form de Login
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.agriculture_rounded,
-                      size: 70,
-                      color: theme.primaryColor,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'AgroMotion',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 15),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/logo_512.png',
+                        width: 64,
+                        height: 64,
                       ),
                     ),
-                    const SizedBox(height: 32),
-
-                    LoginTextField(
-                      controller: _emailController,
-                      hint: 'Email',
-                      icon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                    ),
                     const SizedBox(height: 16),
-                    LoginTextField(
-                      controller: _passwordController,
-                      hint: 'Password',
-                      icon: Icons.lock_outline,
-                      isPassword: true,
-                      obscurePassword: _obscurePassword,
-                      onToggleVisibility: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
+                    Text(
+                      'Agromotion',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF1B5E20),
+                        letterSpacing: 1.2,
+                      ),
                     ),
+                    const SizedBox(height: 40),
 
-                    const SizedBox(height: 24),
-                    PrimaryButton(
-                      label: 'Entrar',
-                      isLoading: _isLoading,
-                      onPressed: _handleFirebaseLogin,
-                    ),
-
-                    const SizedBox(height: 24),
-                    _buildDivider(),
-                    const SizedBox(height: 24),
-
-                    // BOTÕES SOCIAIS
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        if (kIsWeb)
-                          // Na Web, renderiza o botão oficial da Google
-                          SizedBox(
-                            height: 44,
-                            child: _authService.renderGoogleButton(),
-                          )
-                        else
-                          // No Mobile, usa o teu SocialLoginButton customizado
-                          SocialLoginButton(
-                            label: 'Google',
-                            icon: Icons.account_circle,
-                            color: Colors.red.shade400,
-                            onTap: _handleGoogleLogin,
+                    // Card com Glassmorphism
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 400),
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.black.withAlpha(70)
+                              : Colors.white.withAlpha(85),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isDark ? Colors.white10 : Colors.white30,
                           ),
-                      ],
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black12, blurRadius: 20),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            LoginTextField(
+                              controller: _emailController,
+                              hint: 'Email',
+                              icon: Icons.email_outlined,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                            const SizedBox(height: 16),
+                            LoginTextField(
+                              controller: _passwordController,
+                              hint: 'Password',
+                              icon: Icons.lock_outline,
+                              isPassword: true,
+                              obscurePassword: _obscurePassword,
+                              onToggleVisibility: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            PrimaryButton(
+                              label: 'Entrar',
+                              isLoading: _isLoading,
+                              onPressed: () => _processLogin(
+                                _authService.login(
+                                  _emailController.text.trim(),
+                                  _passwordController.text.trim(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            kIsWeb
+                                ? _authService.renderGoogleButton()
+                                : SocialLoginButton(
+                                    label: 'Continuar com Google',
+                                    icon: Icons.account_circle_outlined,
+                                    color: isDark
+                                        ? Colors.white10
+                                        : Colors.white,
+                                    textColor: isDark
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    onTap: () => _processLogin(
+                                      _authService.signInWithGoogle(),
+                                    ),
+                                  ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -192,64 +193,16 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
+          // Overlay de Loading
           if (_isLoading)
-            Container(
-              color: Colors.black.withAlpha(20),
-              child: const Center(child: CircularProgressIndicator()),
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withAlpha(55),
+                child: const Center(child: AgroLoading(size: 100)),
+              ),
             ),
         ],
       ),
-    );
-  }
-
-  Widget _buildAnimatedBackground(Size size) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: CustomPaint(
-              size: Size(size.width, 180),
-              painter: AnimatedWavePainter(
-                animationValue: _controller.value,
-                isTop: true,
-                color1: Colors.green[300]!,
-                color2: Colors.green[100]!,
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: CustomPaint(
-              size: Size(size.width, 180),
-              painter: AnimatedWavePainter(
-                animationValue: -_controller.value,
-                isTop: false,
-                color1: Colors.green[300]!,
-                color2: Colors.green[100]!,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return const Row(
-      children: [
-        Expanded(child: Divider()),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text("Ou", style: TextStyle(color: Colors.grey, fontSize: 12)),
-        ),
-        Expanded(child: Divider()),
-      ],
     );
   }
 }

@@ -4,6 +4,7 @@ class SocialLoginButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
+  final Color? textColor;
   final VoidCallback onTap;
 
   const SocialLoginButton({
@@ -11,29 +12,25 @@ class SocialLoginButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.color,
+    this.textColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.white,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 20),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: textColor ?? Colors.white,
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        side: BorderSide(color: Colors.grey.shade300),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

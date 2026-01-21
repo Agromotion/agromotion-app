@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/widget_background"
+    android:padding="16dp">
+
+    <!-- Title for compact mode -->
+    <TextView
+        android:id="@+id/widget_title_compact"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Agromotion"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-medium"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Circular Progress Indicators -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- Battery Circle -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginEnd="16dp">
+
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="56dp">
+
+                <ProgressBar
+                    android:id="@+id/circle_battery"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:minWidth="40dp"
+                    android:minHeight="40dp"
+                    android:indeterminate="false"
+                    android:max="100"
+                    android:progressDrawable="@drawable/circular_progress_battery"/>
+
+                <TextView
+                    android:id="@+id/text_circle_bat"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="85%"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"/>
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Battery"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+
+        <!-- Food Circle -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="56dp">
+
+                <ProgressBar
+                    android:id="@+id/circle_food"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:minWidth="40dp"
+                    android:minHeight="40dp"
+                    android:indeterminate="false"
+                    android:max="100"
+                    android:progressDrawable="@drawable/circular_progress_food"/>
+
+                <TextView
+                    android:id="@+id/text_circle_food"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="62kg"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif-medium"/>
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Food"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

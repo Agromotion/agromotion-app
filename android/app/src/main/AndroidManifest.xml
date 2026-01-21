@@ -38,6 +38,32 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+
+        <receiver
+            android:name=".RobotWidgetBars"
+            android:exported="true"
+            android:label="Agromotion Bars">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/robot_widget_info_bars" />
+        </receiver>
+
+        <receiver
+            android:name=".RobotWidgetCircles"
+            android:exported="true"
+            android:label="Agromotion Circles">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/robot_widget_info_circles" />
+        </receiver>
+
     </application>
 
     <queries>

@@ -25,45 +25,77 @@ dependencies:
   http: ^1.6.0
   googleapis_auth: ^2.0.0
   logger: ^2.6.2
+  lottie: ^3.3.2
+  video_player: ^2.10.1
+  fvp: ^0.35.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo_512_launcher.png"
+  
+  adaptive_icon_background: "#FFFFFF" # Cor de fundo
+  adaptive_icon_foreground: "assets/logo_512_launcher.png" 
+
+  web:
+    generate: true
+    image_path: "assets/logo_512_launcher.png"
+    background_color: "#FFFFFF"
+    theme_color: "#FFFFFF"
+
+  windows:
+    generate: true
+    image_path: "assets/logo_512_launcher.png"
+    icon_size: 256
 
 flutter:
   uses-material-design: true
   assets:
     - assets/service-account.json
+    - assets/logo_512.png
+    - assets/logo_512_launcher.png
+    - assets/loading_indicator.json
+    - assets/login_videos/video1.mp4
+    - assets/login_videos/video2.mp4
+    - assets/login_videos/video3.mp4
+    - assets/login_videos/video4.mp4
+    - assets/login_videos/video5.MP4
 
   fonts:
     - family: AudibleSans
       fonts:
         # Regular
-        - asset: assets/AudibleSans-Rg.ttf
+        - asset: assets/fonts/AudibleSans-Rg.ttf
         # Italic
-        - asset: assets/AudibleSans-Italic.ttf
+        - asset: assets/fonts/AudibleSans-Italic.ttf
           style: italic
         # Light
-        - asset: assets/AudibleSans-Lt.ttf
+        - asset: assets/fonts/AudibleSans-Lt.ttf
           weight: 300
-        - asset: assets/AudibleSans-LightItalic.ttf
+        - asset: assets/fonts/AudibleSans-LightItalic.ttf
           weight: 300
           style: italic
         # Medium
-        - asset: assets/AudibleSans-Md.ttf
+        - asset: assets/fonts/AudibleSans-Md.ttf
           weight: 500
         # Bold (Bd)
-        - asset: assets/AudibleSans-Bd.ttf
+        - asset: assets/fonts/AudibleSans-Bd.ttf
           weight: 700
         # Bold Italic
-        - asset: assets/AudibleSans-BoldItalic.ttf
+        - asset: assets/fonts/AudibleSans-BoldItalic.ttf
           weight: 700
           style: italic
         # SemiBold (Sm)
-        - asset: assets/AudibleSans-Sm.ttf
+        - asset: assets/fonts/AudibleSans-Sm.ttf
           weight: 600
-        - asset: assets/AudibleSans-SemiboldItalic.ttf
+        - asset: assets/fonts/AudibleSans-SemiboldItalic.ttf
           weight: 600
           style: italic
 

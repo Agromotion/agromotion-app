@@ -7,7 +7,7 @@ class LoginTextField extends StatelessWidget {
   final bool isPassword;
   final bool obscurePassword;
   final VoidCallback? onToggleVisibility;
-  final TextInputType? keyboardType;
+  final TextInputType keyboardType;
 
   const LoginTextField({
     super.key,
@@ -15,37 +15,39 @@ class LoginTextField extends StatelessWidget {
     required this.hint,
     required this.icon,
     this.isPassword = false,
-    this.obscurePassword = false,
+    this.obscurePassword = true,
     this.onToggleVisibility,
-    this.keyboardType,
+    this.keyboardType = TextInputType.text,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      obscureText: isPassword && obscurePassword,
+      obscureText: isPassword ? obscurePassword : false,
       keyboardType: keyboardType,
       decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, size: 20),
+        labelText: hint,
+        prefixIcon: Icon(icon, color: const Color(0xFF2E7D32)),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
-                  obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: const Color(0xFF2E7D32),
                 ),
                 onPressed: onToggleVisibility,
               )
             : null,
-        filled: true,
-        fillColor: Colors.white.withAlpha(230),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
         ),
       ),
     );

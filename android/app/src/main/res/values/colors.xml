@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values/colors.xml -->
+<resources>
+    <!-- Widget Backgrounds - One UI Style -->
+    <color name="widget_background_light">#F5F5F5</color>
+    <color name="widget_background_dark">#1C1C1E</color>
+    
+    <!-- Text Colors -->
+    <color name="widget_text_primary">#1C1C1E</color>
+    <color name="widget_text_secondary">#8E8E93</color>
+    <color name="widget_icon">#8E8E93</color>
+    
+    <!-- Progress Colors -->
+    <color name="progress_background">#E5E5EA</color>
+    
+    <!-- Battery Colors (Dynamic) -->
+    <color name="battery_high">#34C759</color>
+    <color name="battery_medium">#FF9500</color>
+    <color name="battery_low">#FF3B30</color>
+    <color name="battery_critical">#D32F2F</color>
+    
+    <!-- Food Color -->
+    <color name="food_color">#FF9500</color>
+    
+    <!-- Label Background -->
+    <color name="label_background">#FFFFFF</color>
+	<color name="ic_launcher_background">#FFFFFF</color>
+</resources>
