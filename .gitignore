@@ -1,0 +1,50 @@
+# --- Geral / IDEs ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Flutter (pasta /app) ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.pub-cache/
+.pub/
+
+# --- Android ---
+android/**/generated/
+android/app/debug/
+android/app/release/
+android/local.properties
+android/.gradle/
+android/captures/
+*.apk
+*.aab
+
+# --- iOS / macOS ---
+ios/.generated/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+
+# --- Windows (Compilação Desktop) ---
+windows/flutter/ephemeral/
+windows/CMakeCache.txt
+windows/CMakeFiles/
+windows/CMakeLists.txt.user
+windows/*.vcxproj
+windows/*.filters
+windows/*.sln
+/linux/flutter
+/macos/Flutter
+/windows/flutter
+assets/service-account.json
+lib/env.dart
