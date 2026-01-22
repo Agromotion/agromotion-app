@@ -8,7 +8,7 @@ class StatisticsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Análise AgroMotion'),
+        title: const Text('Análise Agromotion'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(

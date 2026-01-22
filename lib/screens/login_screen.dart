@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:agromotion/components/agro_loading.dart';
 import 'package:agromotion/components/login/login_background.dart';
 import 'package:agromotion/components/login/login_footer.dart';
@@ -5,7 +6,7 @@ import 'package:agromotion/components/login/login_text_field.dart';
 import 'package:agromotion/components/login/primary_button.dart';
 import 'package:agromotion/components/login/social_login_button.dart';
 import 'package:agromotion/screens/main_screen.dart';
-import 'package:agromotion/screens/settings_screen.dart'; // Import necessário
+import 'package:agromotion/screens/settings_screen.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,14 +44,14 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!kIsWeb) HapticFeedback.mediumImpact();
 
     final minimumDisplayTime = Future.delayed(
-      const Duration(milliseconds: 3500),
+      const Duration(milliseconds: 2000),
     );
     final results = await Future.wait([loginTask, minimumDisplayTime]);
     final String? error = results[0] as String?;
 
     if (mounted) {
+      setState(() => _isLoading = false);
       if (error != null) {
-        setState(() => _isLoading = false);
         if (!kIsWeb) HapticFeedback.vibrate();
         _showSnackBar(error, isError: true);
       } else {
@@ -75,170 +76,191 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // Background de Vídeo
+          // Fundo
           const Positioned.fill(child: LoginBackground()),
 
-          // Botão de Definições no Topo Direito
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.settings,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
+          // Main Layout
+          LayoutBuilder(
+            builder: (context, constraints) {
+              double contentWidth = math.min(constraints.maxWidth * 0.9, 450);
+              contentWidth = math.max(contentWidth, 320);
 
-          // Form de Login
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Header
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(color: Colors.black26, blurRadius: 15),
-                        ],
-                      ),
-                      child: Image.asset(
-                        'assets/logo_512.png',
-                        width: 90,
-                        height: 90,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Agromotion',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
+              if (contentWidth > constraints.maxWidth) {
+                contentWidth = constraints.maxWidth * 0.95;
+              }
 
-                    // Card com Glassmorphism
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
+              return SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Center(
                       child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.black.withAlpha(70)
-                              : Colors.white.withAlpha(85),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isDark ? Colors.white10 : Colors.white30,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black12, blurRadius: 20),
-                          ],
-                        ),
+                        width: contentWidth,
+                        padding: const EdgeInsets.symmetric(vertical: 24.0),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            LoginTextField(
-                              controller: _emailController,
-                              hint: 'Email',
-                              icon: Icons.email_outlined,
-                              keyboardType: TextInputType.emailAddress,
+                            const SizedBox(
+                              height: 60,
+                            ), // Espaço para o botão de settings
+                            _buildHeader(),
+                            const SizedBox(height: 40),
+                            _buildLoginCard(),
+                            const Spacer(),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20.0),
+                              child: LoginFooter(),
                             ),
-                            const SizedBox(height: 16),
-                            LoginTextField(
-                              controller: _passwordController,
-                              hint: 'Password',
-                              icon: Icons.lock_outline,
-                              isPassword: true,
-                              obscurePassword: _obscurePassword,
-                              onToggleVisibility: () => setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            PrimaryButton(
-                              label: 'Entrar',
-                              isLoading: _isLoading,
-                              onPressed: () => _processLogin(
-                                _authService.login(
-                                  _emailController.text.trim(),
-                                  _passwordController.text.trim(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            kIsWeb
-                                ? _authService.renderGoogleButton()
-                                : SocialLoginButton(
-                                    label: 'Continuar com Google',
-                                    icon: Icons.account_circle_outlined,
-                                    color: isDark
-                                        ? Colors.white10
-                                        : Colors.white,
-                                    textColor: isDark
-                                        ? Colors.white
-                                        : Colors.black87,
-                                    onTap: () => _processLogin(
-                                      _authService.signInWithGoogle(),
-                                    ),
-                                  ),
                           ],
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
+              );
+            },
+          ),
+
+          // Botão de Settings
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            right: 15,
+            child: Material(
+              color: Colors.transparent,
+              child: IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.settings, color: Colors.white, size: 30),
+                tooltip: 'Definições',
               ),
             ),
           ),
 
-          const Align(
-            alignment: Alignment.bottomCenter,
-            child: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 20.0),
-                child: LoginFooter(),
-              ),
-            ),
-          ),
-
-          // Overlay de Loading
+          // 4. Loading Overlay
           if (_isLoading)
             Positioned.fill(
               child: Container(
-                color: Colors.black.withAlpha(55),
+                color: Colors.black.withOpacity(0.6),
                 child: const Center(child: AgroLoading(size: 100)),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 15)],
+          ),
+          child: Image.asset('assets/logo_512.png', width: 120, height: 120),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Agromotion',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginCard() {
+    final theme = Theme.of(context);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LoginTextField(
+              controller: _emailController,
+              hint: 'Email',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 16),
+            LoginTextField(
+              controller: _passwordController,
+              hint: 'Password',
+              icon: Icons.lock_outline,
+              isPassword: true,
+              obscurePassword: _obscurePassword,
+              onToggleVisibility: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+            ),
+            const SizedBox(height: 24),
+            PrimaryButton(
+              label: 'Entrar',
+              isLoading: _isLoading,
+              onPressed: () => _processLogin(
+                _authService.login(
+                  _emailController.text.trim(),
+                  _passwordController.text.trim(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Divider(
+                    color: theme.colorScheme.onSurface.withAlpha(50),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    "ou",
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withAlpha(180),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(
+                    color: theme.colorScheme.onSurface.withAlpha(50),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            kIsWeb
+                ? _authService.renderGoogleButton()
+                : SocialLoginButton(
+                    label: 'Continuar com Google',
+                    icon: Icons.account_circle_outlined,
+                    color: theme.colorScheme.secondaryContainer.withAlpha(150),
+                    textColor: theme.colorScheme.onSecondaryContainer,
+                    onTap: () => _processLogin(_authService.signInWithGoogle()),
+                  ),
+          ],
+        ),
       ),
     );
   }

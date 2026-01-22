@@ -30,6 +30,8 @@ dependencies:
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
+  google_sign_in_all_platforms: ^2.0.2
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:

@@ -5,7 +5,6 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:agromotion/env.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -21,12 +20,16 @@ class NotificationService {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
     _setupTokenHandlers();
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      AppLogger.info('Recebida mensagem em foreground: ${message.notification?.title}');
+      AppLogger.info(
+        'Recebida mensagem em foreground: ${message.notification?.title}',
+      );
     });
   }
 
   void _setupTokenHandlers() async {
-    String? token = await _messaging.getToken(vapidKey: fcmVapidKey);
+    String? token = await _messaging.getToken(
+      vapidKey: String.fromEnvironment('FCM_VAPID_KEY'),
+    );
     if (token != null) _saveTokenToDatabase(token);
     _messaging.onTokenRefresh.listen(_saveTokenToDatabase);
   }

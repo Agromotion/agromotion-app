@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:agromotion/app.dart';
 import 'package:agromotion/firebase_options.dart';
 import 'package:agromotion/services/auth_service.dart';
@@ -6,6 +8,7 @@ import 'package:agromotion/services/widget_service.dart';
 import 'package:agromotion/theme/theme_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
@@ -20,13 +23,15 @@ void main() async {
   await NotificationService().initialize();
   await AuthService().initGoogleSignIn();
 
-  // Inicializa widget com dados padrão
-  await _initializeWidget();
+  // Inicializa widget (Apenas Android/iOS)
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    await _initializeWidget();
+  }
 
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
-      child: const AgroMotionApp(),
+      child: const AgromotionApp(),
     ),
   );
 }

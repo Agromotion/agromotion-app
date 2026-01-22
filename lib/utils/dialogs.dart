@@ -10,7 +10,7 @@ class AppDialogs {
       builder: (context) => AlertDialog(
         title: const Text('Remover Horário?'),
         content: const Text(
-          'O robô AgroMotion deixará de realizar esta tarefa automaticamente.',
+          'O robô Agromotion deixará de realizar esta tarefa automaticamente.',
         ),
         actions: [
           TextButton(
