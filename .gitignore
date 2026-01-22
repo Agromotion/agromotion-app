@@ -48,3 +48,4 @@ windows/*.sln
 /windows/flutter
 assets/service-account.json
 lib/env.dart
+secrets.json

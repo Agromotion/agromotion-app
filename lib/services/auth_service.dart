@@ -1,52 +1,62 @@
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-
-import 'package:agromotion/components/login/google_button_stub.dart'
-    if (dart.library.js_util) 'package:agromotion/components/login/google_button_web.dart';
+import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 
 class AuthService {
-  FirebaseAuth get _auth => FirebaseAuth.instance;
-  GoogleSignIn get _google => GoogleSignIn.instance;
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
 
+  static const String _webClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+  static const String _webClientSecret = String.fromEnvironment(
+    'GOOGLE_CLIENT_SECRET',
+  );
+  bool _isInitialized = false;
+
+  late final GoogleSignIn _googleSignIn = GoogleSignIn(
+    params: GoogleSignInParams(
+      clientId: _webClientId,
+      clientSecret: kIsWeb ? null : _webClientSecret,
+      redirectPort: 5555,
+      scopes: ['openid', 'profile', 'email'],
+    ),
+  );
+
+  FirebaseAuth get _auth => FirebaseAuth.instance;
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
-  bool _isSigningIn = false;
 
+  // --- Inicialização ---
   Future<void> initGoogleSignIn() async {
+    if (_isInitialized) return;
+
     try {
-      await _google.initialize(
-        clientId:
-            '447251651704-t7a47686npj3lo6esjl09vlvem78n6mp.apps.googleusercontent.com',
-      );
+      await _googleSignIn.silentSignIn();
 
-      _google.authenticationEvents.listen((event) async {
-        if (event is GoogleSignInAuthenticationEventSignIn &&
-            _auth.currentUser == null) {
-          if (_isSigningIn) return;
-          _isSigningIn = true;
-
+      _googleSignIn.authenticationState.listen((credentials) async {
+        if (credentials != null && _auth.currentUser == null) {
           try {
-            final googleAuth = event.user.authentication;
             final credential = GoogleAuthProvider.credential(
-              accessToken: googleAuth.idToken,
-              idToken: googleAuth.idToken,
+              accessToken: credentials.accessToken,
+              idToken: credentials.idToken,
             );
-
             await _auth.signInWithCredential(credential);
-            AppLogger.info("Utilizador autenticado via Google Sign-In");
-          } finally {
-            _isSigningIn = false;
+            AppLogger.info("Firebase autenticado com sucesso.");
+          } catch (e) {
+            AppLogger.error("Erro ao vincular ao Firebase", e);
           }
         }
       });
-    } catch (e, stack) {
-      AppLogger.error("Erro ao inicializar Google Sign-In", e, stack);
+
+      _isInitialized = true;
+    } catch (e) {
+      AppLogger.error("Erro ao inicializar Google Auth", e);
     }
   }
 
+  // --- Métodos de Login e logout ---
   Future<String?> login(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(
@@ -55,44 +65,44 @@ class AuthService {
       );
       return null;
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      return e.message ?? "Erro ao iniciar sessão.";
     }
   }
 
   Future<String?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount googleUser = await _google.authenticate();
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.idToken,
-        idToken: googleAuth.idToken,
+      if (kIsWeb) return "Utilize o botão oficial renderGoogleButton()";
+
+      AppLogger.info("Iniciando fluxo no browser nativo...");
+      final credentials = await _googleSignIn.signIn();
+
+      if (credentials == null) return "Login cancelado";
+
+      // Login explícito para garantir a transição de ecrã na LoginScreen
+      final credential = GoogleAuthProvider.credential(
+        accessToken: credentials.accessToken,
+        idToken: credentials.idToken,
       );
 
       await _auth.signInWithCredential(credential);
       return null;
     } catch (e, stack) {
-      AppLogger.error("Erro ao ligar à conta Google", e, stack);
-      return "Erro ao ligar à conta Google.";
+      AppLogger.error("Erro crítico no login Windows", e, stack);
+      return "Erro na autenticação: $e";
     }
   }
 
-  // Método para renderizar o botão oficial na Web
   Widget renderGoogleButton() {
-    if (kIsWeb) {
-      return renderWebGoogleButton();
-    }
+    if (kIsWeb) return _googleSignIn.signInButton() ?? const SizedBox.shrink();
     return const SizedBox.shrink();
   }
 
   Future<void> logout() async {
     try {
-      if (kIsWeb) {
-        await _google.disconnect();
-      }
-      await _google.signOut();
+      await _googleSignIn.signOut();
       await _auth.signOut();
-    } catch (e, stack) {
-      AppLogger.error("Erro ao fazer logout", e, stack);
+    } catch (e) {
+      AppLogger.error("Erro ao fazer logout", e);
     }
   }
 }

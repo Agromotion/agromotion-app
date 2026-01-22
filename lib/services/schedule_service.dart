@@ -49,7 +49,7 @@ class ScheduleService {
 
     // Chama a função auxiliar para notificar todos os dispositivos
     await _notifyAll(
-      'AgroMotion: Horário Alterado',
+      'Agromotion: Horário Alterado',
       'O horário das $time foi $acao por $userEmail.',
     );
   }

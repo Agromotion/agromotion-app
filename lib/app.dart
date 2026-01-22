@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 
-class AgroMotionApp extends StatelessWidget {
-  const AgroMotionApp({super.key});
+class AgromotionApp extends StatelessWidget {
+  const AgromotionApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +14,7 @@ class AgroMotionApp extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
-      title: 'AgroMotion',
+      title: 'Agromotion',
       debugShowCheckedModeBanner: false,
       localizationsDelegates: _locales,
       supportedLocales: const [Locale('pt', 'PT')],

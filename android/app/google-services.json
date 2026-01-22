@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "447251651704-rjgfglfhh0112h6lmj8btpo3enljjk9i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.agromotion",
+            "certificate_hash": "1dfc6e9d38d317b4dc71ee1726b5592623694eae"
+          }
+        },
+        {
           "client_id": "447251651704-t7a47686npj3lo6esjl09vlvem78n6mp.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -30,6 +38,13 @@
             {
               "client_id": "447251651704-t7a47686npj3lo6esjl09vlvem78n6mp.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "447251651704-ng3k3cdie1b752285pckssisdtnkhgoh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.feedBot"
+              }
             }
           ]
         }
