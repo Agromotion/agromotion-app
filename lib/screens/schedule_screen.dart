@@ -1,4 +1,5 @@
 import 'package:agromotion/components/agro_loading.dart';
+import 'package:agromotion/components/agro_snackbar.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,11 +81,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     await _scheduleService.deleteSchedule(scheduleId);
                     HapticFeedback.lightImpact();
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Horário removido com sucesso'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
+                      AgroSnackbar.show(
+                        context,
+                        message: 'Horário removido com sucesso.',
                       );
                     }
                   },

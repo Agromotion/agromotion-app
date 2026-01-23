@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:agromotion/components/agro_loading.dart';
+import 'package:agromotion/components/agro_snackbar.dart';
 import 'package:agromotion/components/login/login_background.dart';
 import 'package:agromotion/components/login/login_footer.dart';
 import 'package:agromotion/components/login/login_text_field.dart';
@@ -43,36 +44,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    // Aqui o loginTask vai validar o Firebase E a Whitelist no AuthService
     final String? error = await loginTask;
 
     if (mounted) {
-      // IMPORTANTE: Paramos o loading antes de mostrar o erro
       setState(() => _isLoading = false);
 
       if (error != null) {
-        // Se houve erro (incluindo erro de whitelist), o AuthService já fez logout.
-        // O AuthWrapper viu o login e o logout num piscar de olhos e decidiu
-        // manter-se na LoginScreen. Como esta instância da LoginScreen nunca foi
-        // destruída, o SnackBar aparece suavemente.
-        _showSnackBar(error, isError: true);
+        AgroSnackbar.show(context, message: error, isError: true);
         if (!kIsWeb) HapticFeedback.vibrate();
       } else {
-        // Se o erro é null, o user é válido e está na whitelist.
-        // O AuthWrapper vai detetar o estado e trocar para a MainScreen.
         if (!kIsWeb) HapticFeedback.lightImpact();
       }
     }
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override

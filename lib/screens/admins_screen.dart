@@ -1,6 +1,6 @@
+import 'package:agromotion/components/agro_snackbar.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:agromotion/components/glass_container.dart';
 
@@ -18,8 +18,10 @@ class _AdminsScreenState extends State<AdminsScreen> {
   Future<void> _addEmail() async {
     final email = _emailController.text.trim().toLowerCase();
     if (email.isEmpty || !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Introduza um e-mail válido')),
+      AgroSnackbar.show(
+        context,
+        message: 'Introduza um e-mail válido.',
+        isError: true,
       );
       return;
     }
@@ -31,9 +33,7 @@ class _AdminsScreenState extends State<AdminsScreen> {
       });
       _emailController.clear();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('E-mail autorizado com sucesso')),
-        );
+        AgroSnackbar.show(context, message: 'E-mail autorizado com sucesso.');
       }
     } catch (e) {
       debugPrint('Erro ao adicionar e-mail: $e');
