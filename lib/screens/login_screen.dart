@@ -5,7 +5,6 @@ import 'package:agromotion/components/login/login_footer.dart';
 import 'package:agromotion/components/login/login_text_field.dart';
 import 'package:agromotion/components/login/primary_button.dart';
 import 'package:agromotion/components/login/social_login_button.dart';
-import 'package:agromotion/screens/main_screen.dart';
 import 'package:agromotion/screens/settings_screen.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -40,26 +39,28 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _processLogin(Future<String?> loginTask) async {
-    setState(() => _isLoading = true);
-    if (!kIsWeb) HapticFeedback.mediumImpact();
+    if (!mounted) return;
 
-    final minimumDisplayTime = Future.delayed(
-      const Duration(milliseconds: 2000),
-    );
-    final results = await Future.wait([loginTask, minimumDisplayTime]);
-    final String? error = results[0] as String?;
+    setState(() => _isLoading = true);
+
+    // Aqui o loginTask vai validar o Firebase E a Whitelist no AuthService
+    final String? error = await loginTask;
 
     if (mounted) {
+      // IMPORTANTE: Paramos o loading antes de mostrar o erro
       setState(() => _isLoading = false);
+
       if (error != null) {
-        if (!kIsWeb) HapticFeedback.vibrate();
+        // Se houve erro (incluindo erro de whitelist), o AuthService já fez logout.
+        // O AuthWrapper viu o login e o logout num piscar de olhos e decidiu
+        // manter-se na LoginScreen. Como esta instância da LoginScreen nunca foi
+        // destruída, o SnackBar aparece suavemente.
         _showSnackBar(error, isError: true);
+        if (!kIsWeb) HapticFeedback.vibrate();
       } else {
+        // Se o erro é null, o user é válido e está na whitelist.
+        // O AuthWrapper vai detetar o estado e trocar para a MainScreen.
         if (!kIsWeb) HapticFeedback.lightImpact();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
       }
     }
   }
@@ -151,8 +152,8 @@ class _LoginScreenState extends State<LoginScreen> {
           if (_isLoading)
             Positioned.fill(
               child: Container(
-                color: Colors.black.withOpacity(0.6),
-                child: const Center(child: AgroLoading(size: 100)),
+                color: Colors.black.withAlpha(60),
+                child: const Center(child: AgroLoading()),
               ),
             ),
         ],

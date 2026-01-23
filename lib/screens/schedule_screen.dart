@@ -1,3 +1,4 @@
+import 'package:agromotion/components/agro_loading.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,7 +38,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
           // 2. Estado de Carregamento
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: AgroLoading());
           }
 
           // 3. Extração e Conversão dos Dados

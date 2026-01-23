@@ -10,7 +10,6 @@ class AgromotionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // MaterialApp recontrói na troca de tema
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(

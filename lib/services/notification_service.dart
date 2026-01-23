@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:agromotion/utils/app_logger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -17,13 +19,17 @@ class NotificationService {
   String? _projectId;
 
   Future<void> initialize() async {
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
-    _setupTokenHandlers();
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      AppLogger.info(
-        'Recebida mensagem em foreground: ${message.notification?.title}',
-      );
-    });
+    if (kIsWeb || Platform.isAndroid || Platform.isIOS) {
+      await _messaging.requestPermission(alert: true, badge: true, sound: true);
+      _setupTokenHandlers();
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        AppLogger.info(
+          'Recebida mensagem em foreground: ${message.notification?.title}',
+        );
+      });
+    } else {
+      AppLogger.info("Notificações Push ignoradas nesta plataforma.");
+    }
   }
 
   void _setupTokenHandlers() async {

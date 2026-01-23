@@ -1,3 +1,4 @@
+import 'package:agromotion/components/agro_loading.dart';
 import 'package:flutter/material.dart';
 
 class PrimaryButton extends StatelessWidget {
@@ -27,14 +28,7 @@ class PrimaryButton extends StatelessWidget {
         disabledBackgroundColor: theme.disabledColor,
       ),
       child: isLoading
-          ? SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: theme.colorScheme.onPrimary,
-              ),
-            )
+          ? SizedBox(height: 20, width: 20, child: AgroLoading())
           : Text(
               label,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

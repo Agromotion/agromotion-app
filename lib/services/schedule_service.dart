@@ -1,3 +1,4 @@
+import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/services/notification_service.dart';
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -25,8 +26,8 @@ class ScheduleService {
       'time': scheduleData['time'],
       'days': scheduleData['days'],
       'active': scheduleData['active'],
-      'createdByUid': user.uid,
-      'createdByEmail': user.email,
+      'createdByUid': AuthService().currentUser?.uid ?? 'Desconhecido',
+      'createdByEmail': AuthService().currentUser?.email ?? 'Desconhecido',
       'createdAt': ServerValue.timestamp,
     });
 

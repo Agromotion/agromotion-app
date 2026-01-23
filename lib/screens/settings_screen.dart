@@ -1,4 +1,5 @@
 import 'package:agromotion/theme/theme_provider.dart';
+import 'package:agromotion/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -34,28 +35,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleLogout() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
     try {
-      await _authService.logout();
-      if (mounted) {
-        Navigator.of(context).pop();
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
+      await _authService.logout().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () =>
+            AppLogger.warning("Logout demorou, mas o estado mudará."),
+      );
     } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Erro ao sair da conta.')));
-      }
+      AppLogger.error("Erro ao sair", e);
     }
   }
 

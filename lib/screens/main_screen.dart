@@ -1,3 +1,4 @@
+import 'package:agromotion/screens/admins_screen.dart';
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'camera_screen.dart';
@@ -14,7 +15,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _index = 0;
-  
+
   late PageController _pageController;
 
   final List<Widget> _pages = [
@@ -22,6 +23,7 @@ class _MainScreenState extends State<MainScreen> {
     const CameraScreen(),
     const ScheduleScreen(),
     const StatisticsScreen(),
+    const AdminsScreen(),
     const SettingsScreen(),
   ];
 
@@ -81,6 +83,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
             label: 'Estatísticas',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            selectedIcon: Icon(Icons.admin_panel_settings),
+            label: 'Admins',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
