@@ -1,13 +1,11 @@
-import 'dart:ui';
 import 'package:agromotion/components/agro_loading.dart';
-import 'package:agromotion/components/agro_snackbar.dart';
 import 'package:agromotion/components/agro_appbar.dart';
 import 'package:agromotion/components/glass_container.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../components/add_schedule_sheet.dart';
+import '../components/schedule/add_schedule.dart';
 import '../utils/dialogs.dart';
 import '../services/schedule_service.dart';
 import '../theme/app_theme.dart';
@@ -173,7 +171,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ],
         ),
         trailing: Switch(
-          activeColor: Colors.green,
+          activeThumbColor: Colors.green,
           value: isActive,
           onChanged: (val) async {
             HapticFeedback.lightImpact();

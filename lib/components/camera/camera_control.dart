@@ -18,11 +18,10 @@ class CameraControl extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return GlassContainer(
-      // Padding reduzido para tornar a barra mais curta
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
       borderRadius: 28,
       child: Row(
-        mainAxisSize: MainAxisSize.min, // Ocupa apenas o espaço necessário
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildActionIcon(
@@ -32,7 +31,6 @@ class CameraControl extends StatelessWidget {
           ),
           const SizedBox(width: 20),
 
-          // Botão de Gravar mais compacto
           GestureDetector(
             onTap: onRecordPressed,
             child: Container(
@@ -45,7 +43,7 @@ class CameraControl extends StatelessWidget {
               child: const Icon(
                 Icons.fiber_manual_record,
                 color: Colors.red,
-                size: 28, // Reduzido de 32
+                size: 28,
               ),
             ),
           ),
@@ -67,13 +65,9 @@ class CameraControl extends StatelessWidget {
     required ColorScheme colorScheme,
   }) {
     return IconButton(
-      icon: Icon(
-        icon,
-        color: colorScheme.onSurface,
-        size: 24,
-      ), // Reduzido de 28
+      icon: Icon(icon, color: colorScheme.onSurface, size: 24),
       onPressed: onTap,
-      visualDensity: VisualDensity.compact, // Remove espaços extras nativos
+      visualDensity: VisualDensity.compact,
     );
   }
 }
