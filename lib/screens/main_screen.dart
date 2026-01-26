@@ -21,7 +21,7 @@ class _MainScreenState extends State<MainScreen> {
   // Ordem: 0: Horário, 1: Câmara, 2: Home, 3: Estatísticas, 4: Perfil (Admins)
   final List<Widget> _pages = [
     const ScheduleScreen(),
-    const CameraScreen(),
+    CameraScreen(),
     const HomeScreen(),
     const StatisticsScreen(),
     const AdminsScreen(),

@@ -74,7 +74,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       context.horizontalPadding,
                       24,
                       context.horizontalPadding,
-                      120,
+                      140,
                     ),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
@@ -107,10 +107,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               );
             },
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => _handleAddNewSchedule(context),
-            label: const Text('Novo Horário'),
-            icon: const Icon(Icons.add),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+          floatingActionButton: Padding(
+            padding: const EdgeInsets.only(bottom: 90),
+            child: FloatingActionButton.extended(
+              onPressed: () => _handleAddNewSchedule(context),
+              label: const Text('Novo Horário'),
+              icon: const Icon(Icons.add),
+            ),
           ),
         ),
       ],

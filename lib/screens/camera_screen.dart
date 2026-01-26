@@ -1,17 +1,108 @@
-import 'package:agromotion/components/camera/camera_control.dart';
-import 'package:agromotion/utils/responsive_layout.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../components/agro_appbar.dart';
-import '../theme/app_theme.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-class CameraScreen extends StatelessWidget {
+// Utils & Services
+import 'package:agromotion/utils/responsive_layout.dart';
+import 'package:agromotion/services/webrtc_service.dart';
+import 'package:agromotion/components/agro_snackbar.dart';
+
+// Componentes Separados
+import 'package:agromotion/components/camera/recording_badge.dart';
+import 'package:agromotion/components/camera/video_feed_display.dart';
+import 'package:agromotion/components/camera/camera_status_view.dart';
+import 'package:agromotion/components/camera/camera_control.dart';
+import 'package:agromotion/components/agro_appbar.dart';
+import 'package:agromotion/theme/app_theme.dart';
+
+class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
 
   @override
+  State<CameraScreen> createState() => _CameraScreenState();
+}
+
+class _CameraScreenState extends State<CameraScreen> {
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  WebRTCService? _webrtcService;
+  bool _isLoading = true;
+  String? _errorMessage;
+  Timer? _timer;
+  int _recordDuration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeWebRTC();
+  }
+
+  Future<void> _initializeWebRTC() async {
+    try {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      await _remoteRenderer.initialize();
+      _webrtcService = WebRTCService(remoteRenderer: _remoteRenderer);
+
+      _remoteRenderer.onResize = () {
+        if (mounted) setState(() {});
+      };
+
+      await _webrtcService!.connect("server_address_here");
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Falha na ligação ao Robô.";
+        });
+      }
+    }
+  }
+
+  void _handleToggleRecording() async {
+    if (_webrtcService == null) return;
+
+    if (_webrtcService!.isRecording) {
+      _timer?.cancel();
+      await _webrtcService!.stopRecording();
+      if (mounted) {
+        setState(() => _recordDuration = 0);
+        AgroSnackbar.show(context, message: "Gravação guardada na galeria!");
+      }
+    } else {
+      try {
+        await _webrtcService!.startRecording();
+        _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+          setState(() => _recordDuration++);
+        });
+      } catch (e) {
+        if (mounted) {
+          AgroSnackbar.show(
+            context,
+            message: "Erro ao iniciar gravação",
+            isError: true,
+          );
+        }
+      }
+    }
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _webrtcService?.dispose();
+    Future.microtask(() => _remoteRenderer.dispose());
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final customColors = theme.extension<AppColorsExtension>()!;
+    final customColors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Stack(
       children: [
@@ -21,59 +112,66 @@ class CameraScreen extends StatelessWidget {
         Scaffold(
           backgroundColor: Colors.transparent,
           body: CustomScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               const AgroAppBar(title: 'Vista do Robô'),
-
               SliverFillRemaining(
-                hasScrollBody: false,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: context.isSmall ? 80 : 120),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          alignment: Alignment.center,
                           children: [
-                            Icon(
-                              Icons.videocam_off_rounded,
-                              color: colorScheme.onSurface.withAlpha(30),
-                              size: 80,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              "A ligar à VPN (Tailscale)...",
-                              style: TextStyle(
-                                color: colorScheme.onSurface.withAlpha(60),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: 40,
-                              child: LinearProgressIndicator(
-                                backgroundColor: colorScheme.primary.withAlpha(
-                                  10,
+                            if (_isLoading || _errorMessage != null)
+                              CameraStatusView(
+                                isLoading: _isLoading,
+                                errorMessage: _errorMessage,
+                                onRetry: _initializeWebRTC,
+                              )
+                            else
+                              VideoFeedDisplay(renderer: _remoteRenderer),
+
+                            if (_webrtcService?.isRecording ?? false)
+                              Positioned(
+                                top: 32,
+                                right: 32,
+                                child: RecordingBadge(
+                                  duration: _recordDuration,
                                 ),
-                                color: colorScheme.primary,
-                                borderRadius: BorderRadius.circular(10),
                               ),
-                            ),
                           ],
                         ),
                       ),
-                    ),
-
-                    Padding(
-                      padding: EdgeInsets.only(
-                        bottom: context.isSmall ? 100 : 120,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: CameraControl(
+                          onCapturePressed: () async {
+                            try {
+                              await _webrtcService?.captureScreenshot();
+                              if (mounted) {
+                                AgroSnackbar.show(
+                                  context,
+                                  message: "Foto capturada!",
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                AgroSnackbar.show(
+                                  context,
+                                  message: "Erro na captura",
+                                  isError: true,
+                                );
+                              }
+                            }
+                          },
+                          onRecordPressed: _handleToggleRecording,
+                          onFlipPressed: _initializeWebRTC,
+                        ),
                       ),
-                      child: CameraControl(
-                        onCapturePressed: () => print("Capturar foto"),
-                        onRecordPressed: () => print("Gravar vídeo"),
-                        onFlipPressed: () => print("Inverter câmara"),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -1,11 +1,21 @@
-import 'package:agromotion/theme/app_theme.dart';
-import 'package:agromotion/theme/theme_provider.dart';
-import 'package:agromotion/utils/app_logger.dart';
+import 'dart:io';
+import 'package:agromotion/components/settings/section_title.dart';
+import 'package:agromotion/components/settings/settings_tile.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../services/auth_service.dart';
-import '../components/glass_container.dart';
+import 'package:agromotion/theme/app_theme.dart';
+import 'package:agromotion/theme/theme_provider.dart';
+import 'package:agromotion/utils/app_logger.dart';
+import 'package:agromotion/utils/responsive_layout.dart';
+import 'package:agromotion/services/storage_service.dart';
+import 'package:agromotion/services/auth_service.dart';
+import 'package:agromotion/components/agro_snackbar.dart';
+import 'package:agromotion/components/settings/settings_header.dart';
+import 'package:agromotion/components/settings/settings_footer.dart';
+import 'package:agromotion/components/settings/connection_info_card.dart';
+import 'package:agromotion/components/settings/logout_button.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,34 +26,65 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
+  final StorageService _storageService = StorageService();
+
   String _appVersion = '0.0.0';
   String _buildNumber = '0';
-  final int _currentYear = DateTime.now().year;
+  String _currentStoragePath = "A carregar...";
 
   @override
   void initState() {
     super.initState();
     _loadPackageInfo();
+    _loadStoragePath();
   }
 
+  /// Carrega informações da build do pacote
   Future<void> _loadPackageInfo() async {
-    final PackageInfo info = await PackageInfo.fromPlatform();
-    setState(() {
-      _appVersion = info.version;
-      _buildNumber = info.buildNumber;
-    });
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() {
+        _appVersion = info.version;
+        _buildNumber = info.buildNumber;
+      });
+    } catch (e) {
+      AppLogger.error("Erro ao carregar info do pacote", e);
+    }
   }
 
+  /// Carrega o caminho atual de armazenamento de capturas
+  Future<void> _loadStoragePath() async {
+    final path = await _storageService.getSavePath();
+    setState(() => _currentStoragePath = path);
+  }
+
+  /// Abre o seletor de pastas e atualiza o estado
+  Future<void> _handlePickPath() async {
+    final newPath = await _storageService.pickCustomPath();
+    if (newPath != null) {
+      setState(() => _currentStoragePath = newPath);
+      if (mounted) {
+        AgroSnackbar.show(
+          context,
+          message: "Local de armazenamento atualizado!",
+        );
+      }
+    }
+  }
+
+  /// Realiza o logout e volta para o ecrã de login
   Future<void> _handleLogout() async {
     try {
       await _authService.logout().timeout(
         const Duration(seconds: 2),
-        onTimeout: () =>
-            AppLogger.warning("Logout demorou, mas o estado mudará."),
+        onTimeout: () => AppLogger.warning("Logout forçado por timeout."),
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      AppLogger.error("Erro ao sair", e);
+      AppLogger.error("Erro ao sair da conta", e);
+      if (mounted) {
+        AgroSnackbar.show(context, message: "Erro ao sair.", isError: true);
+      }
     }
   }
 
@@ -52,12 +93,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final theme = Theme.of(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
     final customColors = theme.extension<AppColorsExtension>()!;
-    final screenWidth = MediaQuery.of(context).size.width;
     final bool isUserLoggedIn = _authService.currentUser != null;
-
-    final double horizontalPadding = screenWidth > 600
-        ? screenWidth * 0.15
-        : 20.0;
 
     return Stack(
       children: [
@@ -70,150 +106,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                // Header com botão de voltar (Estrutura idêntica à NotificationsScreen)
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding - 12,
-                    20,
-                    horizontalPadding,
-                    10,
-                  ),
-                  sliver: SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                          onPressed: () => Navigator.pop(context),
-                          color: theme.colorScheme.onSurface,
-                          iconSize: 20,
-                        ),
-                        const SizedBox(height: 10),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Definições",
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.onSurface,
-                                ),
-                              ),
-                              Text(
-                                "Configure a sua plataforma Agromotion",
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface.withAlpha(
-                                    50,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                const SettingsHeader(),
 
-                // Conteúdo das Definições
                 SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.horizontalPadding,
+                  ),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 20),
-                      _buildSectionTitle(context, 'Aparência'),
-                      GlassContainer(
-                        child: ListTile(
-                          leading: const Icon(Icons.palette_outlined),
-                          title: const Text('Tema'),
-                          trailing: DropdownButton<String>(
-                            value: themeProvider.themeText,
-                            underline: const SizedBox(),
-                            dropdownColor: theme.colorScheme.surface,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'light',
-                                child: Text('Claro'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'dark',
-                                child: Text('Escuro'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'system',
-                                child: Text('Sistema'),
-                              ),
-                            ],
-                            onChanged: (value) =>
-                                themeProvider.setThemeMode(value!),
-                          ),
-                        ),
-                      ),
+
+                      const SectionTitle(title: 'Aparência'),
+                      _buildThemeTile(theme, themeProvider),
 
                       const SizedBox(height: 32),
-                      _buildSectionTitle(context, 'Conexão Remota'),
-                      GlassContainer(
-                        child: Column(
-                          children: [
-                            const ListTile(
-                              leading: Icon(Icons.vpn_key_outlined),
-                              title: Text('VPN / Tailscale'),
-                              subtitle: Text('100.64.0.5 (Conectado)'),
-                              trailing: Icon(
-                                Icons.check_circle,
-                                color: Colors.green,
-                                size: 20,
-                              ),
-                            ),
-                            const Divider(height: 1, indent: 50),
-                            ListTile(
-                              leading: const Icon(Icons.cloud_sync_outlined),
-                              title: const Text('Firebase Realtime'),
-                              subtitle: const Text('Sincronização Ativa'),
-                              onTap: () {},
-                            ),
-                          ],
-                        ),
-                      ),
+
+                      const SectionTitle(title: 'Armazenamento & Capturas'),
+                      _buildStorageTile(),
+
+                      const SizedBox(height: 32),
+
+                      const SectionTitle(title: 'Conexão Remota'),
+                      const ConnectionInfoCard(),
 
                       const SizedBox(height: 40),
-                      if (isUserLoggedIn)
-                        OutlinedButton.icon(
-                          onPressed: _handleLogout,
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('Sair da Conta'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
-                            side: const BorderSide(color: Colors.redAccent),
-                            minimumSize: const Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
 
-                      // Rodapé informativo
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Agromotion © $_currentYear',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Versão $_appVersion ($_buildNumber)',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
+                      if (isUserLoggedIn)
+                        LogoutButton(onPressed: _handleLogout),
+
+                      SettingsFooter(
+                        appVersion: _appVersion,
+                        buildNumber: _buildNumber,
                       ),
                     ]),
                   ),
@@ -226,18 +149,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 16, 12),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          letterSpacing: 1.2,
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.bold,
-        ),
+  Widget _buildThemeTile(ThemeData theme, ThemeProvider provider) {
+    return SettingsTile(
+      icon: Icons.palette_outlined,
+      title: 'Tema',
+      trailing: DropdownButton<String>(
+        value: provider.themeText,
+        underline: const SizedBox(),
+        dropdownColor: theme.colorScheme.surface,
+        items: const [
+          DropdownMenuItem(value: 'light', child: Text('Claro')),
+          DropdownMenuItem(value: 'dark', child: Text('Escuro')),
+          DropdownMenuItem(value: 'system', child: Text('Sistema')),
+        ],
+        onChanged: (value) => provider.setThemeMode(value!),
       ),
+    );
+  }
+
+  /// Constrói a informação de armazenamento (Diferencia Web de Desktop/Mobile)
+  Widget _buildStorageTile() {
+    final bool canChange = !kIsWeb && !Platform.isAndroid && !Platform.isIOS;
+
+    return SettingsTile(
+      icon: kIsWeb ? Icons.download_rounded : Icons.folder_special_outlined,
+      title: 'Local das Capturas',
+      subtitle: Text(
+        kIsWeb ? 'Gerido pelo navegador' : _currentStoragePath,
+        style: const TextStyle(fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: canChange
+          ? IconButton(
+              icon: const Icon(Icons.edit_rounded, size: 20),
+              onPressed: _handlePickPath,
+            )
+          : null,
     );
   }
 }

@@ -77,8 +77,10 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
 
     _opacity = Tween<double>(begin: 0, end: 1).animate(curve);
     _scale = Tween<double>(begin: 0.96, end: 1).animate(curve);
+
+    // ALTERAÇÃO 1: Começa acima (-0.15) para deslizar para baixo
     _slide = Tween<Offset>(
-      begin: const Offset(0, 0.15),
+      begin: const Offset(0, -0.15),
       end: Offset.zero,
     ).animate(curve);
 
@@ -101,7 +103,8 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
-    if (details.delta.dy < 0) return;
+    // ALTERAÇÃO 2: Só permite arrastar para cima (valor negativo)
+    if (details.delta.dy > 0) return;
 
     setState(() {
       _isDragging = true;
@@ -110,9 +113,10 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
   }
 
   void _onDragEnd(DragEndDetails details) {
-    const threshold = 60.0;
+    // ALTERAÇÃO 3: Threshold negativo para fechar ao subir
+    const threshold = -40.0;
 
-    if (_dragOffset > threshold) {
+    if (_dragOffset < threshold) {
       _dismiss();
     } else {
       setState(() {
@@ -138,13 +142,18 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
         ? Colors.redAccent.withAlpha(50)
         : Colors.white.withAlpha(20);
 
-    final dragProgress = (_dragOffset / 120).clamp(0.0, 1.0);
+    // Ajuste da opacidade baseada no arrasto (valor absoluto para funcionar com negativo)
+    final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
 
     return SafeArea(
       child: Align(
-        alignment: Alignment.bottomCenter,
+        alignment: Alignment.topCenter, // ALTERAÇÃO 4: Alinhamento no topo
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 32, left: 24, right: 24),
+          padding: const EdgeInsets.only(
+            top: 24,
+            left: 24,
+            right: 24,
+          ), // ALTERAÇÃO 5: Padding no topo
           child: RepaintBoundary(
             child: GestureDetector(
               onVerticalDragUpdate: _onDragUpdate,

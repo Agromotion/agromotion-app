@@ -1,4 +1,5 @@
 import 'package:agromotion/components/notifications/notification_tile.dart';
+import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
@@ -9,11 +10,6 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final customColors = theme.extension<AppColorsExtension>()!;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    final double horizontalPadding = screenWidth > 600
-        ? screenWidth * 0.15
-        : 20.0;
 
     return Stack(
       children: [
@@ -29,9 +25,9 @@ class NotificationsScreen extends StatelessWidget {
                 // Header com botão de voltar
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(
-                    horizontalPadding - 12,
+                    context.horizontalPadding - 12,
                     20,
-                    horizontalPadding,
+                    context.horizontalPadding,
                     10,
                   ),
                   sliver: SliverToBoxAdapter(
@@ -86,7 +82,9 @@ class NotificationsScreen extends StatelessWidget {
 
                 // Lista de Notificações
                 SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.horizontalPadding,
+                  ),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SectionHeader(title: "Hoje"),
