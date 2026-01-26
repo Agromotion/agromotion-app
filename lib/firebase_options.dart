@@ -67,6 +67,7 @@ class DefaultFirebaseOptions {
     projectId: 'agromotion-8a7f8',
     databaseURL: 'https://agromotion-8a7f8-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'agromotion-8a7f8.firebasestorage.app',
+    androidClientId: '447251651704-rjgfglfhh0112h6lmj8btpo3enljjk9i.apps.googleusercontent.com',
     iosClientId: '447251651704-ng3k3cdie1b752285pckssisdtnkhgoh.apps.googleusercontent.com',
     iosBundleId: 'com.example.feedBot',
   );
@@ -78,6 +79,7 @@ class DefaultFirebaseOptions {
     projectId: 'agromotion-8a7f8',
     databaseURL: 'https://agromotion-8a7f8-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'agromotion-8a7f8.firebasestorage.app',
+    androidClientId: '447251651704-rjgfglfhh0112h6lmj8btpo3enljjk9i.apps.googleusercontent.com',
     iosClientId: '447251651704-ng3k3cdie1b752285pckssisdtnkhgoh.apps.googleusercontent.com',
     iosBundleId: 'com.example.feedBot',
   );
@@ -92,4 +94,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'agromotion-8a7f8.firebasestorage.app',
     measurementId: 'G-6KKGDR0851',
   );
+
 }

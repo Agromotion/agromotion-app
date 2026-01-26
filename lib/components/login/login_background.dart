@@ -12,8 +12,10 @@ class LoginBackground extends StatefulWidget {
 }
 
 class _LoginBackgroundState extends State<LoginBackground> {
-  late final Player _player;
-  late final VideoController _videoController;
+  // Tornamos as variáveis opcionais para evitar acesso antes da inicialização
+  Player? _player;
+  VideoController? _videoController;
+  bool _isInitialized = false;
 
   final List<String> _videoUrls = [
     'https://res.cloudinary.com/dttvwjnxn/video/upload/f_auto,q_auto/v1769002678/video2_rvlrzi.mp4',
@@ -26,14 +28,16 @@ class _LoginBackgroundState extends State<LoginBackground> {
     _player = Player(
       configuration: const PlayerConfiguration(bufferSize: 32 * 1024 * 1024),
     );
-    _videoController = VideoController(_player);
+    _videoController = VideoController(_player!);
     _setupPlayer();
   }
 
   Future<void> _setupPlayer() async {
-    if (!kIsWeb) {
-      final platform = _player.platform;
+    // Verificação de segurança inicial
+    if (_player == null || !mounted) return;
 
+    if (!kIsWeb) {
+      final platform = _player!.platform;
       try {
         await (platform as dynamic)?.setProperty('cache', 'yes');
         await (platform as dynamic)?.setProperty(
@@ -49,16 +53,31 @@ class _LoginBackgroundState extends State<LoginBackground> {
       }
     }
 
-    final playlist = Playlist(_videoUrls.map((url) => Media(url)).toList());
+    // Verificação após chamadas assíncronas
+    if (!mounted) return;
 
-    await _player.setVolume(0);
-    await _player.setPlaylistMode(PlaylistMode.loop);
-    await _player.open(playlist);
+    try {
+      final playlist = Playlist(_videoUrls.map((url) => Media(url)).toList());
+
+      await _player!.setVolume(0);
+      await _player!.setPlaylistMode(PlaylistMode.loop);
+      await _player!.open(playlist);
+
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao iniciar playlist: $e');
+    }
   }
 
   @override
   void dispose() {
-    _player.dispose();
+    // Otimização: parar o player antes de destruir
+    _player?.stop();
+    _player?.dispose();
     super.dispose();
   }
 
@@ -66,11 +85,16 @@ class _LoginBackgroundState extends State<LoginBackground> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Se ainda não inicializou, mostramos um fundo neutro para evitar flashes brancos
+    if (!_isInitialized || _videoController == null) {
+      return Container(color: isDark ? Colors.black : Colors.white);
+    }
+
     return Stack(
       children: [
         SizedBox.expand(
           child: Video(
-            controller: _videoController,
+            controller: _videoController!,
             fit: BoxFit.cover,
             controls: NoVideoControls,
             fill: isDark ? Colors.black : Colors.white,

@@ -1,186 +1,222 @@
+import 'dart:ui';
+import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+import '../components/glass_container.dart';
+import '../components/agro_appbar.dart';
 
 class StatisticsScreen extends StatelessWidget {
   const StatisticsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final customColors = theme.extension<AppColorsExtension>()!;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Análise Agromotion'),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle(context, 'Resumo Geral'),
-            const SizedBox(height: 12),
-            // Grid de métricas rápidas
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.6,
-              children: [
-                _buildQuickStat(
-                  context,
-                  'Alimentado',
-                  '1.2 Ton',
-                  Icons.scale,
-                  Colors.orange,
-                ),
-                _buildQuickStat(
-                  context,
-                  'Distância',
-                  '45.8 km',
-                  Icons.route,
-                  Colors.blue,
-                ),
-                _buildQuickStat(
-                  context,
-                  'Ciclos',
-                  '124',
-                  Icons.loop,
-                  Colors.purple,
-                ),
-                _buildQuickStat(
-                  context,
-                  'Eficiência',
-                  '94%',
-                  Icons.bolt,
-                  Colors.green,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Nível de Bateria (24h)'),
-            _buildChartPlaceholder(
-              context,
-              'Gráfico de Linha: Desgaste de Bateria (%)',
-            ),
-
-            const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Ração Empurrada por Dia'),
-            _buildChartPlaceholder(context, 'Gráfico de Barras: Kg/Dia'),
-
-            const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Últimas Missões'),
-            const SizedBox(height: 12),
-            // Placeholder de histórico
-            _buildMissionLog(
-              context,
-              'Hoje, 07:02',
-              'Concluída',
-              '120kg',
-              Icons.check_circle,
-              Colors.green,
-            ),
-            _buildMissionLog(
-              context,
-              'Hoje, 12:45',
-              'Obstáculo detetado',
-              '45kg',
-              Icons.warning,
-              Colors.amber,
-            ),
-            _buildMissionLog(
-              context,
-              'Ontem, 18:00',
-              'Concluída',
-              '135kg',
-              Icons.check_circle,
-              Colors.green,
-            ),
-
-            const SizedBox(height: 40), // Espaço final para não bater no fundo
-          ],
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(gradient: customColors.backgroundGradient),
         ),
-      ),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // AppBar Compacta e Consistente
+              const AgroAppBar(title: 'Estatísticas'),
+
+              SliverPadding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                  vertical: 24,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildSectionTitle(context, 'Resumo Geral'),
+                    const SizedBox(height: 12),
+
+                    // Grid de métricas rápidas adaptável
+                    _buildQuickStatsGrid(
+                      context.gridCrossAxisCount,
+                      colorScheme,
+                    ),
+
+                    const SizedBox(height: 32),
+                    _buildSectionTitle(context, 'Nível de Bateria (24h)'),
+                    const SizedBox(height: 12),
+                    _buildChartPlaceholder(
+                      context,
+                      'Desgaste de Bateria (%)',
+                      Icons.show_chart,
+                    ),
+
+                    const SizedBox(height: 32),
+                    _buildSectionTitle(context, 'Ração Empurrada por Dia'),
+                    const SizedBox(height: 12),
+                    _buildChartPlaceholder(
+                      context,
+                      'Kg de Ração / Dia',
+                      Icons.bar_chart,
+                    ),
+
+                    const SizedBox(height: 32),
+                    _buildSectionTitle(context, 'Últimas Missões'),
+                    const SizedBox(height: 12),
+                    _buildMissionLog(
+                      context,
+                      'Hoje, 07:02',
+                      'Concluída',
+                      '120kg',
+                      Icons.check_circle_outline,
+                      Colors.green,
+                    ),
+                    _buildMissionLog(
+                      context,
+                      'Hoje, 12:45',
+                      'Obstáculo detetado',
+                      '45kg',
+                      Icons.error_outline,
+                      Colors.amber,
+                    ),
+                    _buildMissionLog(
+                      context,
+                      'Ontem, 18:00',
+                      'Concluída',
+                      '135kg',
+                      Icons.check_circle_outline,
+                      Colors.green,
+                    ),
+
+                    const SizedBox(height: 120), // Espaço para a NavBar
+                  ]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  // Widget para os títulos das secções
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      title.toUpperCase(),
+      style: TextStyle(
+        fontSize: 12,
         fontWeight: FontWeight.bold,
-        color: Theme.of(context).colorScheme.primary,
+        letterSpacing: 1.2,
+        color: Theme.of(context).colorScheme.primary.withAlpha(80),
       ),
     );
   }
 
-  // Widget para métricas em grelha (mais "sexy" que listas simples)
-  Widget _buildQuickStat(
-    BuildContext context,
+  Widget _buildQuickStatsGrid(int crossAxisCount, ColorScheme colorScheme) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: crossAxisCount,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.5,
+      children: [
+        _buildStatItem(
+          'Alimentado',
+          '1.2 Ton',
+          Icons.scale,
+          Colors.orange,
+          colorScheme,
+        ),
+        _buildStatItem(
+          'Distância',
+          '45.8 km',
+          Icons.route,
+          Colors.blue,
+          colorScheme,
+        ),
+        _buildStatItem('Ciclos', '124', Icons.loop, Colors.purple, colorScheme),
+        _buildStatItem(
+          'Eficiência',
+          '94%',
+          Icons.bolt,
+          Colors.green,
+          colorScheme,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(
     String title,
     String val,
     IconData icon,
     Color color,
+    ColorScheme colorScheme,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
+    return GlassContainer(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const Spacer(),
+          Text(
+            val,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 10,
+              color: colorScheme.onSurface.withAlpha(50),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartPlaceholder(
+    BuildContext context,
+    String label,
+    IconData icon,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return GlassContainer(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        height: 160,
+        width: double.infinity,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 20),
-            const Spacer(),
+            Icon(icon, color: colorScheme.primary.withAlpha(40), size: 48),
+            const SizedBox(height: 12),
             Text(
-              val,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+              label,
+              style: TextStyle(
+                color: colorScheme.onSurface.withAlpha(60),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            Text(title, style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              "(Integração fl_chart pendente)",
+              style: TextStyle(
+                fontSize: 10,
+                color: colorScheme.onSurface.withAlpha(30),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // Placeholder para os gráficos (futuro: usar o package fl_chart)
-  Widget _buildChartPlaceholder(BuildContext context, String label) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      child: Container(
-        height: 180,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [
-              colorScheme.surface,
-              colorScheme.surfaceContainer.withAlpha(50),
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.bar_chart,
-                color: colorScheme.outlineVariant,
-                size: 40,
-              ),
-              const SizedBox(height: 8),
-              Text(label, style: TextStyle(color: colorScheme.outline)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Item do log de missões
   Widget _buildMissionLog(
     BuildContext context,
     String date,
@@ -189,18 +225,35 @@ class StatisticsScreen extends StatelessWidget {
     IconData icon,
     Color color,
   ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(
-          date,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(status),
-        trailing: Text(
-          qty,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassContainer(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withAlpha(10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          title: Text(
+            date,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            status,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withAlpha(60),
+            ),
+          ),
+          trailing: Text(
+            qty,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
         ),
       ),
     );

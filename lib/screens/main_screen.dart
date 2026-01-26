@@ -1,10 +1,10 @@
+import 'package:agromotion/components/agro_navbar.dart';
 import 'package:agromotion/screens/admins_screen.dart';
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'camera_screen.dart';
 import 'schedule_screen.dart';
 import 'statistics_screen.dart';
-import 'settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,17 +14,17 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _index = 0;
+  int _index = 2; // Começa no Home (centro)
 
   late PageController _pageController;
 
+  // Ordem: 0: Horário, 1: Câmara, 2: Home, 3: Estatísticas, 4: Perfil (Admins)
   final List<Widget> _pages = [
-    const HomeScreen(),
-    const CameraScreen(),
     const ScheduleScreen(),
+    const CameraScreen(),
+    const HomeScreen(),
     const StatisticsScreen(),
     const AdminsScreen(),
-    const SettingsScreen(),
   ];
 
   @override
@@ -42,6 +42,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: PageView(
         controller: _pageController,
         children: _pages,
@@ -51,7 +52,7 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: AgroNavBar(
         selectedIndex: _index,
         onDestinationSelected: (i) {
           setState(() {
@@ -63,38 +64,6 @@ class _MainScreenState extends State<MainScreen> {
             );
           });
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Início',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.videocam_outlined),
-            selectedIcon: Icon(Icons.videocam),
-            label: 'Câmara',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.schedule_outlined),
-            selectedIcon: Icon(Icons.schedule),
-            label: 'Horários',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Estatísticas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings_outlined),
-            selectedIcon: Icon(Icons.admin_panel_settings),
-            label: 'Admins',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Definições',
-          ),
-        ],
       ),
     );
   }

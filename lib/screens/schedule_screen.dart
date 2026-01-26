@@ -1,11 +1,16 @@
+import 'dart:ui';
 import 'package:agromotion/components/agro_loading.dart';
 import 'package:agromotion/components/agro_snackbar.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:agromotion/components/agro_appbar.dart';
+import 'package:agromotion/components/glass_container.dart';
+import 'package:agromotion/utils/responsive_layout.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../components/add_schedule_sheet.dart';
 import '../utils/dialogs.dart';
 import '../services/schedule_service.dart';
+import '../theme/app_theme.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -21,124 +26,154 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final customColors = theme.extension<AppColorsExtension>()!;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Horários Programados'),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _scheduleService.getSchedulesStream(),
-        builder: (context, snapshot) {
-          // 1. Tratamento de Erro
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Erro ao carregar horários: ${snapshot.error}'),
-            );
-          }
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(gradient: customColors.backgroundGradient),
+        ),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _scheduleService.getSchedulesStream(),
+            builder: (context, snapshot) {
+              // 1. Estados de Erro e Carregamento
+              if (snapshot.hasError) {
+                return Center(child: Text('Erro: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: AgroLoading());
+              }
 
-          // 2. Estado de Carregamento
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: AgroLoading());
-          }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return CustomScrollView(
+                  slivers: [
+                    AgroAppBar(title: 'Horários'),
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _buildEmptyState(colorScheme),
+                    ),
+                  ],
+                );
+              }
 
-          // 3. Extração e Conversão dos Dados
-          final data =
-              snapshot.data?.snapshot.value as Map<dynamic, dynamic>? ?? {};
+              // 2. Processamento Firestore
+              final schedulesList = snapshot.data!.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
 
-          final schedulesList = data.entries.map((e) {
-            return {'id': e.key, ...Map<String, dynamic>.from(e.value as Map)};
-          }).toList();
+              schedulesList.sort(
+                (a, b) => a['time'].toString().compareTo(b['time'].toString()),
+              );
 
-          // Ordenar por hora (ex: 07:00 vem antes de 18:00)
-          schedulesList.sort(
-            (a, b) => a['time'].toString().compareTo(b['time'].toString()),
-          );
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  AgroAppBar(title: 'Horários'),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      context.horizontalPadding,
+                      24,
+                      context.horizontalPadding,
+                      120,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final s = schedulesList[index];
+                        final String scheduleId = s['id'];
 
-          // 4. Estado Vazio
-          if (schedulesList.isEmpty) {
-            return _buildEmptyState(colorScheme);
-          }
-
-          // 5. Lista de Horários
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: schedulesList.length,
-            itemBuilder: (context, index) {
-              final s = schedulesList[index];
-              final String scheduleId = s['id'];
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Dismissible(
-                  key: Key(scheduleId), // Usar o ID real do Firebase como chave
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (direction) async {
-                    HapticFeedback.heavyImpact();
-                    return await AppDialogs.showDeleteConfirmation(context);
-                  },
-                  onDismissed: (_) async {
-                    await _scheduleService.deleteSchedule(scheduleId);
-                    HapticFeedback.lightImpact();
-                    if (context.mounted) {
-                      AgroSnackbar.show(
-                        context,
-                        message: 'Horário removido com sucesso.',
-                      );
-                    }
-                  },
-                  background: _buildDeleteBackground(colorScheme),
-                  child: _buildScheduleCard(s, context),
-                ),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Dismissible(
+                            key: Key(scheduleId),
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (_) async {
+                              HapticFeedback.heavyImpact();
+                              return await AppDialogs.showDeleteConfirmation(
+                                context,
+                              );
+                            },
+                            onDismissed: (_) async {
+                              await _scheduleService.deleteSchedule(scheduleId);
+                              HapticFeedback.lightImpact();
+                            },
+                            background: _buildDeleteBackground(colorScheme),
+                            child: _buildScheduleCard(s, context, colorScheme),
+                          ),
+                        );
+                      }, childCount: schedulesList.length),
+                    ),
+                  ),
+                ],
               );
             },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _handleAddNewSchedule(context),
-        label: const Text('Novo Horário'),
-        icon: const Icon(Icons.add),
-      ),
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _handleAddNewSchedule(context),
+            label: const Text('Novo Horário'),
+            icon: const Icon(Icons.add),
+          ),
+        ),
+      ],
     );
   }
 
-  // --- Construção do Card de Horário ---
-  Widget _buildScheduleCard(Map<String, dynamic> s, BuildContext context) {
+  Widget _buildScheduleCard(
+    Map<String, dynamic> s,
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) {
     final bool isActive = s['active'] ?? false;
     final String createdBy = s['createdByEmail'] ?? 'Desconhecido';
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return GlassContainer(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: ListTile(
         onTap: () async {
-          // Passamos os dados atuais para edição
           final result = await AddScheduleSheet.show(context, initialData: s);
           if (result != null) {
             await _scheduleService.saveSchedule(result, id: s['id']);
           }
         },
-        leading: Icon(
-          Icons.alarm,
-          color: isActive ? Colors.green : Colors.grey,
-          size: 28,
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isActive
+                ? Colors.green.withAlpha(10)
+                : Colors.grey.withAlpha(10),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.alarm,
+            color: isActive ? Colors.green : Colors.grey,
+            size: 24,
+          ),
         ),
         title: Text(
           s['time'] ?? '--:--',
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(s['days'] ?? 'Sem dias definidos'),
-            const SizedBox(height: 4),
             Text(
-              'Por: $createdBy',
-              style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic),
+              (s['days'] is List)
+                  ? (s['days'] as List).join(', ')
+                  : s['days'] ?? 'Sem dias definidos',
+              style: TextStyle(color: colorScheme.onSurface.withAlpha(70)),
+            ),
+            Text(
+              'Por: ${createdBy.split('@')[0]}',
+              style: TextStyle(
+                fontSize: 10,
+                color: colorScheme.onSurface.withAlpha(40),
+              ),
             ),
           ],
         ),
         trailing: Switch(
+          activeColor: Colors.green,
           value: isActive,
           onChanged: (val) async {
             HapticFeedback.lightImpact();
@@ -156,32 +191,36 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget _buildDeleteBackground(ColorScheme colorScheme) {
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.error.withAlpha(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.error.withAlpha(50)),
       ),
       alignment: Alignment.centerRight,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Icon(Icons.delete_outline, color: colorScheme.error),
+      child: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
     );
   }
 
   Widget _buildEmptyState(ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.event_busy, size: 80, color: colorScheme.outlineVariant),
-          const SizedBox(height: 16),
-          const Text(
-            'Nenhum horário agendado',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
-          const Text(
-            'Crie um horário para o robô atuar.',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.calendar_today_outlined,
+          size: 64,
+          color: colorScheme.onSurface.withAlpha(20),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Sem agendamentos',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Adicione um horário para começar.',
+          style: TextStyle(color: colorScheme.onSurface.withAlpha(50)),
+        ),
+      ],
     );
   }
 

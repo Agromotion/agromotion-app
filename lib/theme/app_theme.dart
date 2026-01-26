@@ -1,8 +1,53 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
+
+class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
+  final LinearGradient backgroundGradient;
+  final LinearGradient primaryButtonGradient;
+  final LinearGradient glassGradient;
+
+  AppColorsExtension({
+    required this.backgroundGradient,
+    required this.primaryButtonGradient,
+    required this.glassGradient,
+  });
+
+  @override
+  ThemeExtension<AppColorsExtension> copyWith() => this;
+
+  @override
+  ThemeExtension<AppColorsExtension> lerp(
+    ThemeExtension<AppColorsExtension>? other,
+    double t,
+  ) {
+    if (other is! AppColorsExtension) return this;
+    return AppColorsExtension(
+      backgroundGradient: LinearGradient.lerp(
+        backgroundGradient,
+        other.backgroundGradient,
+        t,
+      )!,
+      primaryButtonGradient: LinearGradient.lerp(
+        primaryButtonGradient,
+        other.primaryButtonGradient,
+        t,
+      )!,
+      glassGradient: LinearGradient.lerp(
+        glassGradient,
+        other.glassGradient,
+        t,
+      )!,
+    );
+  }
+}
 
 class AppTheme {
   static const String _fontFamily = 'AudibleSans';
+
+  // A cor vibrante original (ótima para destaques e botões com texto escuro)
+  static const Color primaryGreen = Color(0xFFCDFF5E);
+
+  // Uma variante mais escura para garantir contraste em ícones/textos no modo claro
+  static const Color primaryGreenDark = Color(0xFF4A6B00);
 
   static ThemeData get lightTheme => _createTheme(Brightness.light);
   static ThemeData get darkTheme => _createTheme(Brightness.dark);
@@ -10,35 +55,75 @@ class AppTheme {
   static ThemeData _createTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
 
+    // Ajuste de cores do vidro para melhorar contraste no modo claro
     final glassColor = isDark
-        ? Colors.white.withAlpha(5)
-        : Colors.white.withAlpha(25);
+        ? const Color(0xFF2A3530).withAlpha(120)
+        : Colors.white.withAlpha(210); // Mais opaco no modo claro
 
     final glassBorder = isDark
-        ? Colors.white.withAlpha(15)
-        : Colors.white.withAlpha(40);
+        ? const Color(0xFF4A5A4F).withAlpha(100)
+        : const Color(
+            0xFF2E3D33,
+          ).withAlpha(40); // Borda ligeiramente mais visível
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       fontFamily: _fontFamily,
       scaffoldBackgroundColor: isDark
-          ? const Color(0xFF0F170F)
-          : const Color(0xFFF0F4F0),
+          ? const Color(0xFF1A2520)
+          : const Color(0xFFF0F4F1),
 
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF4CAF50),
+        seedColor: primaryGreen,
         brightness: brightness,
+        // No modo claro, usamos a versão escura como primária para garantir contraste em ícones e textos
+        primary: isDark ? primaryGreen : primaryGreenDark,
+        onPrimary: isDark ? const Color(0xFF1A2520) : Colors.white,
+        secondary: const Color(
+          0xFFCDFF5E,
+        ), // Mantemos a cor original como secundária de destaque
         surface: glassColor,
+        onSurface: isDark ? const Color(0xFFE8F0E8) : const Color(0xFF1A2520),
+        outline: glassBorder,
+        error: isDark ? const Color(0xFFFF5252) : const Color(0xFFD32F2F),
       ),
 
+      extensions: [
+        AppColorsExtension(
+          backgroundGradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [const Color(0xFF1A2520), const Color(0xFF0F1A15)]
+                : [
+                    const Color(0xFFF5F7F5),
+                    const Color(0xFFE2E9E2),
+                  ], // Fundo claro mais profundo
+          ),
+          primaryButtonGradient: const LinearGradient(
+            colors: [primaryGreen, Color(0xFFB8E84D)],
+          ),
+          glassGradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    const Color(0xFF2A3530).withAlpha(140),
+                    const Color(0xFF1A2520).withAlpha(100),
+                  ]
+                : [Colors.white.withAlpha(230), Colors.white.withAlpha(160)],
+          ),
+        ),
+      ],
+
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: isDark
+            ? 0
+            : 2, // Ligeira elevação no modo claro para destacar do fundo
         color: glassColor,
         clipBehavior: Clip.antiAlias,
-        shadowColor: isDark
-            ? Colors.black.withAlpha(30)
-            : Colors.black.withAlpha(10),
+        shadowColor: Colors.black.withAlpha(isDark ? 30 : 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(color: glassBorder, width: 1.5),
@@ -52,6 +137,9 @@ class AppTheme {
           horizontal: 20,
           vertical: 16,
         ),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF1A2520),
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -63,20 +151,9 @@ class AppTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: isDark ? const Color(0xFF66BB6A) : const Color(0xFF4CAF50),
+            color: isDark ? primaryGreen : primaryGreenDark,
             width: 2,
           ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: isDark ? Colors.red.withAlpha(60) : Colors.red.withAlpha(80),
-            width: 1.5,
-          ),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
       ),
 
@@ -86,103 +163,33 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(
+          color: isDark ? const Color(0xFFE8F0E8) : const Color(0xFF1A2520),
+        ),
         titleTextStyle: TextStyle(
           fontFamily: _fontFamily,
           fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: isDark ? Colors.white : Colors.black87,
-          letterSpacing: 0.5,
+          fontWeight: FontWeight.bold,
+          color: isDark ? const Color(0xFFE8F0E8) : const Color(0xFF1A2520),
         ),
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: glassColor,
-          foregroundColor: isDark ? Colors.white : Colors.black87,
+          elevation: isDark ? 0 : 4,
+          backgroundColor: primaryGreen,
+          foregroundColor: const Color(
+            0xFF1A2520,
+          ), // Texto sempre escuro para contraste no verde limão
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: glassBorder, width: 1.5),
           ),
-        ),
-      ),
-
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: isDark
-              ? const Color(0xFF66BB6A)
-              : const Color(0xFF4CAF50),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          side: BorderSide(color: glassBorder, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
-
-      // Dialog com glassmorphism
-      dialogTheme: DialogThemeData(
-        elevation: 0,
-        backgroundColor: glassColor,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-          side: BorderSide(color: glassBorder, width: 1.5),
-        ),
-      ),
-
-      // Bottom Sheet
-      bottomSheetTheme: BottomSheetThemeData(
-        elevation: 0,
-        backgroundColor: glassColor,
-        surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: glassColor,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-      ),
-
-      // Navigation Bar
-      navigationBarTheme: NavigationBarThemeData(
-        elevation: 0,
-        backgroundColor: glassColor,
-        indicatorColor: isDark
-            ? Colors.white.withAlpha(10)
-            : Colors.black.withAlpha(5),
-        labelTextStyle: WidgetStateProperty.all(
-          TextStyle(
-            fontFamily: _fontFamily,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-
-      textTheme: TextTheme(
-        displayLarge: TextStyle(
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-          color: isDark ? Colors.white : Colors.black87,
-        ),
-        displayMedium: TextStyle(
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.8,
-          color: isDark ? Colors.white : Colors.black87,
-        ),
-        bodyLarge: TextStyle(
-          fontWeight: FontWeight.w400,
-          color: isDark ? Colors.white.withAlpha(90) : Colors.black87,
-        ),
-        bodyMedium: TextStyle(
-          fontWeight: FontWeight.w400,
-          color: isDark ? Colors.white.withAlpha(80) : Colors.black87,
         ),
       ),
 
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: glassColor,
-        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF2A3530) : Colors.white,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -190,85 +197,11 @@ class AppTheme {
         ),
         contentTextStyle: TextStyle(
           fontFamily: _fontFamily,
-          color: isDark ? Colors.white : Colors.black87,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+          color: isDark ? Colors.white : const Color(0xFF1A2520),
         ),
       ),
 
-      // Divider
-      dividerTheme: DividerThemeData(
-        color: glassBorder,
-        thickness: 1,
-        space: 1,
-      ),
-
-      // Chip
-      chipTheme: ChipThemeData(
-        backgroundColor: glassColor,
-        side: BorderSide(color: glassBorder, width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        labelStyle: TextStyle(
-          fontFamily: _fontFamily,
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: isDark ? Colors.white : Colors.black87,
-        ),
-      ),
-    );
-  }
-}
-
-// Widget auxiliar para criar containers com glassmorphism
-class GlassContainer extends StatelessWidget {
-  final Widget child;
-  final double borderRadius;
-  final EdgeInsetsGeometry? padding;
-  final double blur;
-  final Color? color;
-  final Border? border;
-
-  const GlassContainer({
-    super.key,
-    required this.child,
-    this.borderRadius = 24,
-    this.padding,
-    this.blur = 10,
-    this.color,
-    this.border,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultColor = isDark
-        ? Colors.white.withAlpha(5)
-        : Colors.white.withAlpha(25);
-    final borderColor = isDark
-        ? Colors.white.withAlpha(15)
-        : Colors.white.withAlpha(40);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: color ?? defaultColor,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: border ?? Border.all(color: borderColor, width: 1.5),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [Colors.white.withAlpha(8), Colors.white.withAlpha(2)]
-                  : [Colors.white.withAlpha(40), Colors.white.withAlpha(10)],
-            ),
-          ),
-          child: child,
-        ),
-      ),
+      dividerTheme: DividerThemeData(color: glassBorder, thickness: 1),
     );
   }
 }

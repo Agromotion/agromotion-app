@@ -89,9 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const SizedBox(
-                              height: 60,
-                            ), // Espaço para o botão de settings
+                            const SizedBox(height: 60),
                             _buildHeader(),
                             const SizedBox(height: 40),
                             _buildLoginCard(),
@@ -131,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // 4. Loading Overlay
+          // Loading Overlay
           if (_isLoading)
             Positioned.fill(
               child: Container(

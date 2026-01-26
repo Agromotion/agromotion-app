@@ -1,32 +1,43 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart'; // Ajuste conforme a sua estrutura
 
 class GlassContainer extends StatelessWidget {
   final Widget child;
-  const GlassContainer({super.key, required this.child});
+  final double borderRadius;
+  final EdgeInsetsGeometry? padding;
+  final double blur;
+  final Color? color;
+  final Border? border;
+
+  const GlassContainer({
+    super.key,
+    required this.child,
+    this.borderRadius = 24,
+    this.padding,
+    this.blur = 10,
+    this.color,
+    this.border,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cardTheme = Theme.of(context).cardTheme;
-    final shape = cardTheme.shape;
-
-    // Extrai a BorderSide se o shape for RoundedRectangleBorder
-    BorderSide? borderSide;
-    if (shape is RoundedRectangleBorder) {
-      borderSide = shape.side;
-    }
+    final theme = Theme.of(context);
+    final customColors = theme.extension<AppColorsExtension>();
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
         child: Container(
+          padding: padding,
           decoration: BoxDecoration(
-            color: cardTheme.color,
-            borderRadius: BorderRadius.circular(24),
-            border: borderSide != null && borderSide.style != BorderStyle.none
-                ? Border.fromBorderSide(borderSide)
-                : Border.all(color: Colors.white.withAlpha(30)),
+            color: color ?? theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border:
+                border ??
+                Border.all(color: theme.colorScheme.outline, width: 1.5),
+            gradient: customColors?.glassGradient,
           ),
           child: child,
         ),
