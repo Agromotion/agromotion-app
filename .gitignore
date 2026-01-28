@@ -49,3 +49,4 @@ windows/*.sln
 assets/service-account.json
 lib/env.dart
 secrets.json
+/debug-info

@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 class CameraControl extends StatelessWidget {
   final VoidCallback? onCapturePressed;
   final VoidCallback? onRecordPressed;
-  final VoidCallback? onFlipPressed;
+  final VoidCallback? onRetryPressed;
 
   const CameraControl({
     super.key,
     this.onCapturePressed,
     this.onRecordPressed,
-    this.onFlipPressed,
+    this.onRetryPressed,
   });
 
   @override
@@ -50,8 +50,8 @@ class CameraControl extends StatelessWidget {
 
           const SizedBox(width: 20),
           _buildActionIcon(
-            icon: Icons.flip_camera_ios_outlined,
-            onTap: onFlipPressed,
+            icon: Icons.refresh_rounded,
+            onTap: onRetryPressed,
             colorScheme: colorScheme,
           ),
         ],
