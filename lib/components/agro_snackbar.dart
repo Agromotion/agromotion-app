@@ -78,14 +78,13 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
     _opacity = Tween<double>(begin: 0, end: 1).animate(curve);
     _scale = Tween<double>(begin: 0.96, end: 1).animate(curve);
 
-    // ALTERAÇÃO 1: Começa acima (-0.15) para deslizar para baixo
     _slide = Tween<Offset>(
       begin: const Offset(0, -0.15),
       end: Offset.zero,
     ).animate(curve);
 
     _controller.forward();
-    HapticFeedback.selectionClick();
+    HapticFeedback.lightImpact();
     _setAutoDismiss();
   }
 
@@ -103,8 +102,7 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
-    // ALTERAÇÃO 2: Só permite arrastar para cima (valor negativo)
-    if (details.delta.dy > 0) return;
+    if (details.delta.dy > 0) return; // Apenas arrasto para cima
 
     setState(() {
       _isDragging = true;
@@ -113,9 +111,7 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
   }
 
   void _onDragEnd(DragEndDetails details) {
-    // ALTERAÇÃO 3: Threshold negativo para fechar ao subir
     const threshold = -40.0;
-
     if (_dragOffset < threshold) {
       _dismiss();
     } else {
@@ -134,26 +130,32 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Cores baseadas no ColorScheme e estado de erro
+    final feedbackColor = widget.isError
+        ? colorScheme.error
+        : (isDark ? Colors.greenAccent : Colors.green.shade700);
+
+    // Ajuste do fundo para Glassmorphism (Dark vs Light)
     final bgColor = widget.isError
-        ? Colors.red.withAlpha(20)
-        : Colors.white.withAlpha(10);
+        ? feedbackColor.withOpacity(isDark ? 0.15 : 0.1)
+        : (isDark
+              ? colorScheme.surface.withOpacity(0.1)
+              : colorScheme.surface.withOpacity(0.7));
 
-    final borderColor = widget.isError
-        ? Colors.redAccent.withAlpha(50)
-        : Colors.white.withAlpha(20);
+    final borderColor = feedbackColor.withOpacity(0.3);
+    final textColor = isDark ? Colors.white : colorScheme.onSurface;
 
-    // Ajuste da opacidade baseada no arrasto (valor absoluto para funcionar com negativo)
     final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
 
     return SafeArea(
       child: Align(
-        alignment: Alignment.topCenter, // ALTERAÇÃO 4: Alinhamento no topo
+        alignment: Alignment.topCenter,
         child: Padding(
-          padding: const EdgeInsets.only(
-            top: 24,
-            left: 24,
-            right: 24,
-          ), // ALTERAÇÃO 5: Padding no topo
+          padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
           child: RepaintBoundary(
             child: GestureDetector(
               onVerticalDragUpdate: _onDragUpdate,
@@ -190,6 +192,14 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
                                   color: borderColor,
                                   width: 1.5,
                                 ),
+                                boxShadow: [
+                                  if (!isDark)
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 5),
+                                    ),
+                                ],
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -198,16 +208,14 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
                                     widget.isError
                                         ? Icons.warning_amber_rounded
                                         : Icons.check_circle_outline_rounded,
-                                    color: widget.isError
-                                        ? Colors.redAccent
-                                        : Colors.greenAccent,
+                                    color: feedbackColor,
                                   ),
                                   const SizedBox(width: 12),
                                   Flexible(
                                     child: Text(
                                       widget.message,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: textColor,
                                         fontSize: 15,
                                         fontWeight: FontWeight.w500,
                                       ),

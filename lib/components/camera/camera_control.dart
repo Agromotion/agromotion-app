@@ -108,8 +108,6 @@ class CameraControl extends StatelessWidget {
     return DropdownButton<String>(
       value: currentQuality,
       underline: const SizedBox(),
-      dropdownColor: theme.colorScheme.surface.withOpacity(0.9),
-      borderRadius: BorderRadius.circular(16),
       icon: const Icon(
         Icons.arrow_drop_up_rounded,
         size: 18,
@@ -121,8 +119,7 @@ class CameraControl extends StatelessWidget {
       ),
       items: const [
         DropdownMenuItem(value: 'auto', child: Text('AUTO')),
-        DropdownMenuItem(value: 'original', child: Text('1080P')),
-        DropdownMenuItem(value: '720', child: Text('720P')),
+        DropdownMenuItem(value: '720', child: Text('ORIGINAL')),
         DropdownMenuItem(value: '480', child: Text('480P')),
       ],
       onChanged: (val) => onQualityChanged(val!),

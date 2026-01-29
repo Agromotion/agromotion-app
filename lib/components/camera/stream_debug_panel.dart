@@ -8,6 +8,8 @@ class StreamDebugPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return GlassContainer(
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
@@ -17,16 +19,16 @@ class StreamDebugPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.terminal_rounded,
-                color: Colors.greenAccent,
+                color: colorScheme.primary,
                 size: 16,
               ),
               const SizedBox(width: 8),
               Text(
                 "DIAGNÓSTICO TÉCNICO",
                 style: TextStyle(
-                  color: Colors.greenAccent.withOpacity(0.8),
+                  color: colorScheme.primary.withAlpha(80),
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -34,20 +36,30 @@ class StreamDebugPanel extends StatelessWidget {
               ),
             ],
           ),
-          const Divider(color: Colors.white10, height: 20),
-          _debugLine("RESOLUÇÃO", stats['res'] ?? "---"),
-          _debugLine("FRAME RATE", "${stats['fps']?.toInt() ?? 0} FPS"),
-          _debugLine("LATÊNCIA", "${stats['latency'] ?? '---'} ms"),
-          _debugLine("PERDA PAC.", "${stats['loss']?.toStringAsFixed(2)}%"),
+          Divider(color: colorScheme.onSurface.withAlpha(10), height: 20),
+          _debugLine(context, "RESOLUÇÃO", stats['res'] ?? "---"),
+          _debugLine(
+            context,
+            "FRAME RATE",
+            "${stats['fps']?.toInt() ?? 0} FPS",
+          ),
+          _debugLine(context, "LATÊNCIA", "${stats['latency'] ?? '---'} ms"),
+          _debugLine(
+            context,
+            "PERDA PAC.",
+            "${stats['loss']?.toStringAsFixed(2) ?? '0.00'}%",
+          ),
           const SizedBox(height: 8),
-          _debugLine("CPU ROBÔ", stats['cpu'] ?? "---"),
-          _debugLine("TEMP. PI", stats['temp'] ?? "---"),
+          _debugLine(context, "CPU ROBÔ", stats['cpu'] ?? "---"),
+          _debugLine(context, "TEMP. PI", stats['temp'] ?? "---"),
         ],
       ),
     );
   }
 
-  Widget _debugLine(String label, String value) {
+  Widget _debugLine(BuildContext context, String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -55,8 +67,8 @@ class StreamDebugPanel extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white54,
+            style: TextStyle(
+              color: colorScheme.onSurface.withAlpha(60),
               fontSize: 10,
               fontFamily: 'monospace',
             ),
@@ -64,8 +76,8 @@ class StreamDebugPanel extends StatelessWidget {
           const SizedBox(width: 20),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: colorScheme.onSurface,
               fontSize: 10,
               fontWeight: FontWeight.bold,
               fontFamily: 'monospace',
