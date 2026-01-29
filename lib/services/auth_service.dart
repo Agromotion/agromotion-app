@@ -1,3 +1,7 @@
+/// Serviço para gerir autenticação de utilizadores.
+/// Inclui lógica para login via Google/Email e Password e verificação de autorização.
+library;
+
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

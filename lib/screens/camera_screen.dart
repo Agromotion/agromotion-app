@@ -2,19 +2,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-// Utils & Services
+// Utils & Theme
 import 'package:agromotion/utils/responsive_layout.dart';
+import 'package:agromotion/theme/app_theme.dart';
+
+// Services
 import 'package:agromotion/services/webrtc_service.dart';
 import 'package:agromotion/components/agro_snackbar.dart';
 
-// Componentes Modularizados
+// Componentes HUD & Controlos
 import 'package:agromotion/components/camera/recording_badge.dart';
 import 'package:agromotion/components/camera/video_feed_display.dart';
 import 'package:agromotion/components/camera/camera_status_view.dart';
 import 'package:agromotion/components/camera/camera_control.dart';
-import 'package:agromotion/components/camera/quality_selector.dart';
+import 'package:agromotion/components/camera/stream_debug_panel.dart';
 import 'package:agromotion/components/agro_appbar.dart';
-import 'package:agromotion/theme/app_theme.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -27,11 +29,25 @@ class _CameraScreenState extends State<CameraScreen> {
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   WebRTCService? _webrtcService;
 
+  // Estados de Interface
   bool _isLoading = true;
   String? _errorMessage;
-  Timer? _recordTimer;
-  int _recordDuration = 0;
+  bool _showDebug = false;
+
+  // Estados de Transmissão
   String _currentQuality = 'auto';
+  int _recordDuration = 0;
+  Timer? _recordTimer;
+
+  // Mapa de Estatísticas Reais
+  final Map<String, dynamic> _streamStats = {
+    'fps': 0.0,
+    'loss': 0.0,
+    'res': '0x0',
+    'latency': '---',
+    'cpu': '---',
+    'temp': '---',
+  };
 
   @override
   void initState() {
@@ -39,7 +55,7 @@ class _CameraScreenState extends State<CameraScreen> {
     _initializeWebRTC();
   }
 
-  /// Inicializa a stream e configura os serviços
+  /// Inicializa a ligação e mapeia os serviços
   Future<void> _initializeWebRTC() async {
     try {
       if (!mounted) return;
@@ -49,98 +65,113 @@ class _CameraScreenState extends State<CameraScreen> {
       });
 
       await _remoteRenderer.initialize();
-
-      // Limpeza de instância anterior se houver (para o botão Flip/Retry)
       _webrtcService?.dispose();
 
       _webrtcService = WebRTCService(remoteRenderer: _remoteRenderer);
 
-      // Conexão ao Simulador/Robô
-      await _webrtcService!.connect("https://j2srtf27-8080.usw3.devtunnels.ms");
+      // --- CONFIGURAÇÃO DE LISTENERS ---
+      // 1. Ouvinte de Telemetria (FPS, Res, CPU, Temp)
+      _webrtcService!.telemetry.onTelemetryReceived = (data) {
+        if (mounted) {
+          setState(() {
+            _streamStats['fps'] = data['fps']?.toDouble() ?? 0.0;
+            _streamStats['res'] = data['res'] ?? 'Unknown';
+            _streamStats['cpu'] = "${data['cpu']}%";
+            _streamStats['temp'] = "${data['temp']}°C";
+          });
+        }
+      };
+
+      // 2. Ouvinte de Latência (Ping)
+      _webrtcService!.telemetry.onLatencyMeasured = (latency) {
+        if (mounted) setState(() => _streamStats['latency'] = latency);
+      };
+
+      // 3. Ouvinte de Interrupção de Ligação
+      _webrtcService!.onConnectionLost = () {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = "A ligação ao robô foi interrompida.";
+          });
+
+          // Feedback visual
+          AgroSnackbar.show(
+            context,
+            message: "Ligação perdida. Verifique o sinal do robô.",
+            isError: true,
+          );
+        }
+      };
+
+      // 4. Conectar
+      await _webrtcService!.connect().timeout(const Duration(seconds: 30));
 
       if (mounted) {
         setState(() => _isLoading = false);
         _setupQualityLogic();
+        _startPacketLossMonitor();
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "Falha na ligação ao Robô.";
+          _errorMessage = e is TimeoutException
+              ? "O robô não respondeu à offer."
+              : "Erro na ligação.";
         });
       }
     }
   }
 
-  /// Configura o monitor de rede se estiver em modo automático
+  /// Monitoriza a perda de pacotes local
+  void _startPacketLossMonitor() {
+    Timer.periodic(const Duration(seconds: 2), (timer) async {
+      if (_webrtcService == null ||
+          !mounted ||
+          _isLoading ||
+          _errorMessage != null) {
+        timer.cancel();
+        return;
+      }
+      final loss = await _webrtcService!.getConnectionLoss();
+      if (mounted) setState(() => _streamStats['loss'] = loss);
+    });
+  }
+
   void _setupQualityLogic() {
     if (_currentQuality == 'auto') {
-      _webrtcService?.startAutoQualityMonitor((quality) {
-        debugPrint("Rede ajustada automaticamente para: $quality");
-      });
+      _webrtcService?.startAutoQualityMonitor((q) => debugPrint("Auto: $q"));
     }
   }
 
-  /// Altera a qualidade manualmente ou ativa o modo auto
   void _handleQualityChange(String quality) {
     setState(() => _currentQuality = quality);
-
     if (quality == 'auto') {
       _setupQualityLogic();
     } else {
       _webrtcService?.stopAutoQualityMonitor();
-      _webrtcService?.setVideoQuality(quality);
+      _webrtcService?.telemetry.sendCommand("SET_QUALITY", quality);
     }
-
-    AgroSnackbar.show(
-      context,
-      message: "Modo: ${quality == 'auto' ? 'Automático' : quality + 'p'}",
-    );
+    AgroSnackbar.show(context, message: "Modo: ${quality.toUpperCase()}");
   }
 
-  /// Gere o início e fim da gravação de vídeo
   void _handleToggleRecording() async {
     if (_webrtcService == null) return;
 
-    if (_webrtcService!.isRecording) {
+    if (_webrtcService!.media.isRecording) {
       _recordTimer?.cancel();
-      await _webrtcService!.stopRecording();
-      if (mounted) {
-        setState(() => _recordDuration = 0);
-        AgroSnackbar.show(context, message: "Gravação guardada na galeria!");
-      }
+      await _webrtcService!.media.stopRecording();
+      setState(() => _recordDuration = 0);
+      AgroSnackbar.show(context, message: "Gravação guardada!");
     } else {
       try {
-        await _webrtcService!.startRecording();
+        await _webrtcService!.media.startRecording(_remoteRenderer.srcObject);
         _recordTimer = Timer.periodic(const Duration(seconds: 1), (t) {
           setState(() => _recordDuration++);
         });
       } catch (e) {
-        if (mounted) {
-          AgroSnackbar.show(
-            context,
-            message: "Erro ao iniciar gravação",
-            isError: true,
-          );
-        }
-      }
-    }
-  }
-
-  /// Captura de Foto (Screenshot)
-  Future<void> _handleCapture() async {
-    try {
-      await _webrtcService?.captureScreenshot();
-      if (mounted) {
-        AgroSnackbar.show(context, message: "Foto capturada e guardada!");
-      }
-    } catch (e) {
-      if (mounted) {
-        AgroSnackbar.show(
-          context,
-          message: "Erro ao capturar foto",
-          isError: true,
-        );
+        AgroSnackbar.show(context, message: "Erro na gravação", isError: true);
       }
     }
   }
@@ -155,82 +186,78 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final customColors = theme.extension<AppColorsExtension>()!;
+    final customColors = Theme.of(context).extension<AppColorsExtension>()!;
+    final isSmall = MediaQuery.of(context).size.width < 600;
 
     return Stack(
       children: [
-        // Fundo com Gradiente
         Container(
           decoration: BoxDecoration(gradient: customColors.backgroundGradient),
         ),
-
         Scaffold(
           backgroundColor: Colors.transparent,
           body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              const AgroAppBar(title: 'Vista do Robô'),
-
+              const AgroAppBar(title: 'Monitorização Robô'),
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Padding(
-                  padding: EdgeInsets.only(
-                    bottom: context.isSmall
-                        ? 100
-                        : 140, // Padding para a NavBar customizada
-                  ),
+                  padding: EdgeInsets.only(bottom: isSmall ? 100 : 120),
                   child: Column(
                     children: [
-                      // Área do Vídeo
                       Expanded(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
-                              // Estado da Transmissão
+                              // AQUI: Se houver erro ou carregamento, o vídeo é removido da árvore
+                              // Isto evita os erros de Context Lost (EGL) no Windows
                               if (_isLoading || _errorMessage != null)
                                 CameraStatusView(
                                   isLoading: _isLoading,
                                   errorMessage: _errorMessage,
                                   onRetry: _initializeWebRTC,
                                 )
-                              else
+                              else ...[
                                 VideoFeedDisplay(renderer: _remoteRenderer),
-
-                              // Seletor de Qualidade (Canto Superior Esquerdo)
-                              if (!_isLoading && _errorMessage == null)
-                                Positioned(
-                                  top: 16,
-                                  left: 16,
-                                  child: QualitySelector(
-                                    currentQuality: _currentQuality,
-                                    onQualityChanged: _handleQualityChange,
+                                if (_showDebug)
+                                  Positioned(
+                                    top: 20,
+                                    left: 20,
+                                    child: StreamDebugPanel(
+                                      stats: _streamStats,
+                                    ),
                                   ),
-                                ),
-
-                              // Badge de Gravação (Canto Superior Direito)
-                              if (_webrtcService?.isRecording ?? false)
-                                Positioned(
-                                  top: 16,
-                                  right: 16,
-                                  child: RecordingBadge(
-                                    duration: _recordDuration,
+                                if (_webrtcService?.media.isRecording ?? false)
+                                  Positioned(
+                                    top: 20,
+                                    right: 20,
+                                    child: RecordingBadge(
+                                      duration: _recordDuration,
+                                    ),
                                   ),
-                                ),
+                              ],
                             ],
                           ),
                         ),
                       ),
 
-                      // Controlos da Câmara (Captura, Record, Retry)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        padding: const EdgeInsets.symmetric(vertical: 20),
                         child: CameraControl(
-                          onCapturePressed: _handleCapture,
+                          isDebugVisible: _showDebug,
+                          isRecording:
+                              _webrtcService?.media.isRecording ?? false,
+                          currentQuality: _currentQuality,
+                          onToggleDebug: () =>
+                              setState(() => _showDebug = !_showDebug),
+                          onQualityChanged: _handleQualityChange,
+                          onCapturePressed: () => _webrtcService?.media
+                              .captureScreenshot(_remoteRenderer.srcObject),
                           onRecordPressed: _handleToggleRecording,
-                          onRetryPressed: _initializeWebRTC, // Reinicia a stream
+                          onRetryPressed: _initializeWebRTC,
                         ),
                       ),
                     ],

@@ -1,3 +1,7 @@
+/// Serviço para gerir o armazenamento de capturas de ecrã e vídeos.
+/// Inclui lógica para escolher caminhos de armazenamento personalizados.
+library;
+
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';

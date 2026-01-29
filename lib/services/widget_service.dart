@@ -1,7 +1,8 @@
-// lib/services/widget_service.dart
+/// Serviço para gerir a atualização do widget de ecrã inicial Android.
+library;
+
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:flutter/services.dart';
 

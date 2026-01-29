@@ -1,3 +1,7 @@
+/// Serviço para gerir os horários de operação.
+/// Inclui lógica para criação, edição, remoção e notificação de alterações.
+library;
+
 import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/services/notification_service.dart';
 import 'package:agromotion/utils/app_logger.dart';

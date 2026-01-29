@@ -1,3 +1,7 @@
+/// Serviço para gerir notificações push via Firebase Cloud Messaging (FCM).
+/// Inclui lógica para inicialização, pedido de permissões e envio de notificações diretas.
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:agromotion/utils/app_logger.dart';

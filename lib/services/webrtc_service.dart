@@ -1,155 +1,156 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:async';
-import 'package:agromotion/services/storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:http/http.dart' as http;
-import 'package:gal/gal.dart';
+import 'package:agromotion/services/signaling_service.dart';
+import 'telemetry_service.dart';
+import 'media_service.dart';
 
 class WebRTCService {
   RTCPeerConnection? _peerConnection;
   RTCVideoRenderer remoteRenderer;
-  RTCDataChannel? _dataChannel;
-  MediaRecorder? _mediaRecorder;
-  Timer? _statsTimer;
-
-  bool isRecording = false;
-  String? _currentFilePath;
+  StreamSubscription? _signalingSubscription;
+  Timer? _qualityTimer;
   bool _isDisposed = false;
+  String _lastAutoQuality = "";
+
+  VoidCallback? onConnectionLost;
+
+  final SignalingService _signaling = SignalingService();
+  final TelemetryService telemetry = TelemetryService();
+  final MediaService media = MediaService();
 
   WebRTCService({required this.remoteRenderer});
-  final StorageService _storage = StorageService();
 
-  Future<void> connect(String url) async {
-    Map<String, dynamic> configuration = {
+  Future<void> connect() async {
+    _peerConnection = await createPeerConnection({
       "sdpSemantics": "unified-plan",
       "iceServers": [
         {"urls": "stun:stun.l.google.com:19302"},
       ],
-    };
+    });
 
-    _peerConnection = await createPeerConnection(configuration);
+    // Monitorizar estado da ligação para evitar erros de GPU no Windows
+    _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+      debugPrint("WebRTC: ICE State -> $state");
+
+      if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+        // Se a ligação caiu, limpamos o renderer antes de avisar a UI
+        _cleanupRenderer();
+        onConnectionLost?.call();
+      }
+    };
 
     await _peerConnection!.addTransceiver(
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
     );
 
-    // Criar canal de dados para comandos de qualidade
     RTCDataChannelInit dcInit = RTCDataChannelInit();
-    _dataChannel = await _peerConnection!.createDataChannel("commands", dcInit);
+    final channel = await _peerConnection!.createDataChannel(
+      "commands",
+      dcInit,
+    );
+    telemetry.initialize(channel);
 
     _peerConnection!.onTrack = (RTCTrackEvent event) {
-      if (_isDisposed) return;
-      if (event.track.kind == 'video') {
+      if (!_isDisposed && event.track.kind == 'video') {
         remoteRenderer.srcObject = event.streams[0];
       }
     };
 
     RTCSessionDescription offer = await _peerConnection!.createOffer({
       'offerToReceiveVideo': 1,
-      'offerToReceiveAudio': 0,
     });
     await _peerConnection!.setLocalDescription(offer);
+    await _signaling.sendOffer(offer.sdp!, offer.type!);
 
-    final response = await http.post(
-      Uri.parse('$url/offer'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({"sdp": offer.sdp, "type": offer.type}),
-    );
+    Completer<void> connectedCompleter = Completer();
+    _signalingSubscription = _signaling.getSignalingStream().listen((
+      snapshot,
+    ) async {
+      if (_isDisposed || !snapshot.exists) return;
+      var data = snapshot.data() as Map<String, dynamic>?;
+      var answer = data?['answer'];
 
-    if (response.statusCode == 200) {
-      var data = jsonDecode(response.body);
-      await _peerConnection!.setRemoteDescription(
-        RTCSessionDescription(data["sdp"], data["type"]),
+      if (answer != null && !connectedCompleter.isCompleted) {
+        await _peerConnection!.setRemoteDescription(
+          RTCSessionDescription(answer['sdp'], answer['type']),
+        );
+        telemetry.startPingSequence();
+        connectedCompleter.complete();
+      }
+    });
+
+    try {
+      return await connectedCompleter.future.timeout(
+        const Duration(seconds: 30),
       );
+    } on TimeoutException {
+      if (telemetry.isConnected) return;
+      rethrow;
     }
   }
 
-  void setVideoQuality(String quality) {
-    if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
-      _dataChannel!.send(
-        RTCDataChannelMessage(
-          jsonEncode({"type": "SET_QUALITY", "value": quality}),
-        ),
-      );
-    }
+  /// Limpa o srcObject para evitar que a GPU tente renderizar frames inexistentes
+  void _cleanupRenderer() {
+    remoteRenderer.srcObject = null;
   }
+
+  // --- Lógica de Qualidade ---
 
   void startAutoQualityMonitor(Function(String) onQualityChanged) {
-    _statsTimer?.cancel();
-    _statsTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    _qualityTimer?.cancel();
+    _qualityTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (_isDisposed) return;
+
       double loss = await getConnectionLoss();
+      String newQuality = "";
+
       if (loss > 5.0) {
-        setVideoQuality("480");
-        onQualityChanged("480");
+        newQuality = "480";
       } else if (loss < 1.0) {
-        setVideoQuality("original");
-        onQualityChanged("original");
+        newQuality = "original";
+      }
+
+      if (newQuality.isNotEmpty && newQuality != _lastAutoQuality) {
+        _lastAutoQuality = newQuality;
+        telemetry.sendCommand("SET_QUALITY", newQuality);
+        onQualityChanged(newQuality);
       }
     });
   }
 
-  void stopAutoQualityMonitor() => _statsTimer?.cancel();
+  void stopAutoQualityMonitor() {
+    _qualityTimer?.cancel();
+  }
+
+  // --- Estatísticas de Rede ---
 
   Future<double> getConnectionLoss() async {
     if (_peerConnection == null) return 0.0;
-    List<StatsReport> stats = await _peerConnection!.getStats();
-    for (var report in stats) {
-      if (report.type == 'inbound-rtp' && report.values['kind'] == 'video') {
-        int lost = report.values['packetsLost'] ?? 0;
-        int received = report.values['packetsReceived'] ?? 0;
-        if ((received + lost) == 0) return 0.0;
-        return (lost / (received + lost)) * 100;
+    try {
+      final stats = await _peerConnection!.getStats();
+      for (var report in stats) {
+        if (report.type == 'inbound-rtp' && report.values['kind'] == 'video') {
+          int lost = report.values['packetsLost'] ?? 0;
+          int received = report.values['packetsReceived'] ?? 0;
+          if ((received + lost) == 0) return 0.0;
+          return (lost / (received + lost)) * 100;
+        }
       }
+    } catch (e) {
+      debugPrint("Erro ao obter stats: $e");
     }
     return 0.0;
   }
 
-  Future<void> captureScreenshot() async {
-    final streams = _peerConnection?.getRemoteStreams();
-    if (streams == null || streams.isEmpty) return;
-    final frame = await streams[0]?.getVideoTracks()[0].captureFrame();
-    if (Platform.isAndroid || Platform.isIOS) {
-      await Gal.putImageBytes(frame!.asUint8List());
-    } else {
-      final saveDir = await _storage.getSavePath();
-      final file = File(
-        '$saveDir/IMG_${DateTime.now().millisecondsSinceEpoch}.png',
-      );
-      await file.writeAsBytes(frame!.asUint8List());
-    }
-  }
-
-  Future<void> startRecording() async {
-    if (isRecording || Platform.isWindows) return;
-    final streams = _peerConnection?.getRemoteStreams();
-    final saveDir = await _storage.getSavePath();
-    _currentFilePath =
-        '$saveDir/REC_${DateTime.now().millisecondsSinceEpoch}.mp4';
-    _mediaRecorder = MediaRecorder();
-    await _mediaRecorder!.start(
-      _currentFilePath!,
-      videoTrack: streams![0]?.getVideoTracks()[0],
-    );
-    isRecording = true;
-  }
-
-  Future<void> stopRecording() async {
-    if (!isRecording) return;
-    await _mediaRecorder?.stop();
-    isRecording = false;
-    if (Platform.isAndroid || Platform.isIOS) {
-      await Gal.putVideo(_currentFilePath!);
-      File(_currentFilePath!).delete();
-    }
-  }
-
   void dispose() {
     _isDisposed = true;
-    _statsTimer?.cancel();
-    _dataChannel?.close();
+    _qualityTimer?.cancel();
+    _signalingSubscription?.cancel();
+    telemetry.dispose();
+    _cleanupRenderer();
     _peerConnection?.dispose();
   }
 }
