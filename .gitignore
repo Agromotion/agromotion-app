@@ -50,3 +50,5 @@ assets/service-account.json
 lib/env.dart
 secrets.json
 /debug-info
+assets/models/fp.obj
+assets/models/fp.mtl

@@ -1,3 +1,4 @@
+import 'dart:async'; // Use the real unawaited from dart:async
 import 'dart:io';
 
 import 'package:agromotion/app.dart';
@@ -10,22 +11,32 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
+  // Use the actual binding result if needed, otherwise just ensure initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Initialize Firebase first
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 2. Initialize MediaKit for video performance
   MediaKit.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseAuth.instance.setLanguageCode('pt-PT');
 
-  await NotificationService().initialize();
-  await AuthService().initGoogleSignIn();
+  // 3. Initialize App Notification Service
+  // This requests permissions and subscribes to the FCM topic robot_agromotion_robot_01
+  final notificationService = NotificationService();
+  unawaited(notificationService.setupPushNotifications());
 
-  // Inicializa widget (Apenas Android/iOS)
+  unawaited(AuthService().initGoogleSignIn());
+
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-    await _initializeWidget();
+    unawaited(_initializeWidget());
+    _setupSystemUI();
   }
 
   runApp(
@@ -36,15 +47,27 @@ void main() async {
   );
 }
 
-/// Inicializa o widget com valores padrão ao iniciar a app
+void _setupSystemUI() {
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+}
+
 Future<void> _initializeWidget() async {
   try {
+    // Note: In a production setup, you'd fetch the real values
+    // from Firestore robots/robot_id before updating the widget.
     await WidgetService.updateRobotWidget(
-      status: 'Iniciando',
-      battery: 85,
-      food: '62kg',
+      status: 'Conectado',
+      battery: 0, // Will be updated by real telemetry stream later
+      food: '---',
     );
   } catch (e) {
-    debugPrint('Erro ao inicializar widget: $e');
+    debugPrint('Widget Init Error: $e');
   }
 }

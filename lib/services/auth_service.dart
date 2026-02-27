@@ -2,6 +2,7 @@
 /// Inclui lógica para login via Google/Email e Password e verificação de autorização.
 library;
 
+import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,17 +15,15 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  static const String _webClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
-  static const String _webClientSecret = String.fromEnvironment(
-    'GOOGLE_CLIENT_SECRET',
-  );
+  String get _googleClientId => AppConfig.googleClientId;
+  String get _googleClientSecret => AppConfig.googleClientSecret;
   bool _isInitialized = false;
   final ValueNotifier<bool> isWhitelisting = ValueNotifier<bool>(false);
 
   late final GoogleSignIn _googleSignIn = GoogleSignIn(
     params: GoogleSignInParams(
-      clientId: _webClientId,
-      clientSecret: kIsWeb ? null : _webClientSecret,
+      clientId: _googleClientId,
+      clientSecret: kIsWeb ? null : _googleClientSecret,
       redirectPort: 5555,
       scopes: ['openid', 'profile', 'email'],
     ),

@@ -52,7 +52,7 @@ class CameraStatusView extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          "A ligar ao Robô...",
+          "A conectar ao Robô...",
           style: TextStyle(color: colorScheme.onSurface.withAlpha(150)),
         ),
       ],

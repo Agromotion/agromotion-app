@@ -1,10 +1,12 @@
-import 'dart:ui';
+import 'package:agromotion/components/glass_container.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/settings_screen.dart';
 
+<<<<<<< Updated upstream
 class AgroAppBar extends StatelessWidget {
   final String title;
 
@@ -13,105 +15,128 @@ class AgroAppBar extends StatelessWidget {
   const AgroAppBar({super.key, required this.title, this.isOnline = true});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final customColors = theme.extension<AppColorsExtension>()!;
+=======
+class AgroAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const AgroAppBar({super.key});
 
-    return SliverLayoutBuilder(
-      builder: (context, constraints) {
-        return SliverAppBar(
-          expandedHeight: 110,
-          pinned: true,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          flexibleSpace: ClipRRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: customColors.glassGradient,
-                  border: Border(
-                    bottom: BorderSide(color: colorScheme.outline, width: 1),
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 20);
+
+  @override
+>>>>>>> Stashed changes
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SliverAppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      pinned: true,
+      toolbarHeight: kToolbarHeight + 20,
+      automaticallyImplyLeading: false,
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(top: 20),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildNotificationButton(context, colorScheme),
+              const SizedBox(width: 8),
+              _buildGlassIconButton(
+                context: context,
+                icon: Icons.settings_outlined,
+                tooltip: 'Definições',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
                   ),
                 ),
-                child: FlexibleSpaceBar(
-                  titlePadding: EdgeInsets.only(
-                    left: context.horizontalPadding,
-                    bottom: 16,
-                    right: context.horizontalPadding - 8,
-                  ),
-                  centerTitle: false,
-                  title: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Lado Esquerdo: Título e Status
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: theme.appBarTheme.titleTextStyle?.copyWith(
-                              fontSize: context.isSmall ? 18 : 22,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          _buildStatusBadge(colorScheme, context.isSmall),
-                        ],
-                      ),
+                colorScheme: colorScheme,
+                isSmall: context.isSmall,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: context.horizontalPadding),
+      ],
+    );
+  }
 
-                      // Lado Direito: Ações com feedback visual nativo
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildNativeIconButton(
-                            context: context,
-                            icon: Icons.notifications_outlined,
-                            tooltip: 'Notificações',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const NotificationsScreen(),
-                                ),
-                              );
-                            },
-                            colorScheme: colorScheme,
-                            isSmall: context.isSmall,
-                          ),
-                          _buildNativeIconButton(
-                            context: context,
-                            icon: Icons.settings_outlined,
-                            tooltip: 'Definições',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SettingsScreen(),
-                                ),
-                              );
-                            },
-                            colorScheme: colorScheme,
-                            isSmall: context.isSmall,
-                          ),
-                        ],
-                      ),
-                    ],
+  static Widget _buildNotificationButton(
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) {
+    final email = FirebaseAuth.instance.currentUser?.email;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(email)
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .snapshots(),
+      builder: (context, snapshot) {
+        bool hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+
+        return Stack(
+          alignment: Alignment.topRight,
+          children: [
+            _buildGlassIconButton(
+              context: context,
+              icon: Icons.notifications_outlined,
+              tooltip: 'Notificações',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsScreen(),
+                ),
+              ),
+              colorScheme: colorScheme,
+              isSmall: context.isSmall,
+            ),
+            if (hasUnread)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-            ),
-          ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildNativeIconButton({
+  // Static version for use in non-sliver contexts (HomeScreen)
+  static Widget buildActions(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildNotificationButton(context, colorScheme),
+        const SizedBox(width: 8),
+        _buildGlassIconButton(
+          context: context,
+          icon: Icons.settings_outlined,
+          tooltip: 'Definições',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+          ),
+          colorScheme: colorScheme,
+          isSmall: context.isSmall,
+        ),
+      ],
+    );
+  }
+
+  static Widget _buildGlassIconButton({
     required BuildContext context,
     required IconData icon,
     required String tooltip,
@@ -119,55 +144,26 @@ class AgroAppBar extends StatelessWidget {
     required ColorScheme colorScheme,
     required bool isSmall,
   }) {
-    // Usar IconButton para feedback de toque nativo (ripple circular)
-    return Material(
-      type: MaterialType.transparency,
-      child: IconButton(
-        onPressed: onTap,
-        icon: Icon(icon),
-        tooltip: tooltip,
-        iconSize: isSmall ? 18 : 22,
-        color: colorScheme.onSurface,
-        // Define o raio do splash para ser proporcional ao ícone
-        splashRadius: isSmall ? 20 : 24,
-        padding: const EdgeInsets.all(8),
-        constraints:
-            const BoxConstraints(), // Remove as restrições de tamanho mínimo do Material
-      ),
-    );
-  }
+    final iconSize = isSmall ? 20.0 : 24.0;
+    final containerSize = isSmall ? 38.0 : 42.0;
 
-  Widget _buildStatusBadge(ColorScheme colorScheme, bool isSmall) {
-    final color = isOnline ? colorScheme.primary : colorScheme.error;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: color.withAlpha(50),
-                blurRadius: 4,
-                spreadRadius: 1,
-              ),
-            ],
+    return Tooltip(
+      message: tooltip,
+      child: GlassContainer(
+        borderRadius: 32,
+        child: SizedBox(
+          width: containerSize,
+          height: containerSize,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(32),
+              child: Icon(icon, size: iconSize, color: colorScheme.onSurface),
+            ),
           ),
         ),
-        const SizedBox(width: 6),
-        Text(
-          isOnline ? 'ONLINE' : 'OFFLINE',
-          style: TextStyle(
-            fontSize: 8,
-            fontWeight: FontWeight.bold,
-            color: color.withAlpha(90),
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

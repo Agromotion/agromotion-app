@@ -1,27 +1,35 @@
-/// Serviço para gerir a sinalização WebRTC via Firestore.
-/// Inclui lógica para envio de ofertas e receção de respostas.
-library;
-
+import 'package:agromotion/config/app_config.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 class SignalingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String robotId = String.fromEnvironment(
-    'ROBOT_ID',
-    defaultValue: 'robot_01',
-  );
+  String get robotId => AppConfig.robotId;
 
-  /// Envia a oferta WebRTC para o Firestore
-  Future<void> sendOffer(String sdp, String type) async {
-    await _firestore.collection('robot').doc(robotId).set({
-      'offer': {'sdp': sdp, 'type': type},
-      'answer': null,
-      'lastUpdate': FieldValue.serverTimestamp(),
-    });
+  /// Listen for the Answer from the Robot
+  Stream<DocumentSnapshot> getSignalingStream() {
+    return _firestore.collection('robot_sessions').doc(robotId).snapshots();
   }
 
-  /// Escuta a resposta vinda do Robô
-  Stream<DocumentSnapshot> getSignalingStream() {
-    return _firestore.collection('robot').doc(robotId).snapshots();
+  /// Post the Offer and ICE Candidates to Firestore
+  Future<void> sendOffer(
+    RTCSessionDescription offer,
+    List<RTCIceCandidate> candidates,
+  ) async {
+    await _firestore.collection('robot_sessions').doc(robotId).set({
+      'offer': {'sdp': offer.sdp, 'type': offer.type},
+      'appCandidates': candidates
+          .map(
+            (e) => {
+              'candidate': e.candidate,
+              'sdpMid': e.sdpMid,
+              'sdpMLineIndex': e.sdpMLineIndex,
+            },
+          )
+          .toList(),
+      'answer': null,
+      'robotCandidates': [],
+      'lastUpdate': FieldValue.serverTimestamp(),
+    });
   }
 }

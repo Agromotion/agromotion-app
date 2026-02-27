@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
   final LinearGradient backgroundGradient;
   final LinearGradient primaryButtonGradient;
   final LinearGradient glassGradient;
 
+  final Color backgroundBaseColor;
+
   AppColorsExtension({
     required this.backgroundGradient,
     required this.primaryButtonGradient,
     required this.glassGradient,
+    required this.backgroundBaseColor,
   });
 
   @override
@@ -36,6 +40,11 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
         other.glassGradient,
         t,
       )!,
+      backgroundBaseColor: Color.lerp(
+        backgroundBaseColor,
+        other.backgroundBaseColor,
+        t,
+      )!,
     );
   }
 }
@@ -44,10 +53,10 @@ class AppTheme {
   static const String _fontFamily = 'AudibleSans';
 
   // A cor vibrante original (ótima para destaques e botões com texto escuro)
-  static const Color primaryGreen = Color(0xFFCDFF5E);
+  static const Color primaryGreen = Color.fromARGB(255, 111, 211, 116);
 
   // Uma variante mais escura para garantir contraste em ícones/textos no modo claro
-  static const Color primaryGreenDark = Color(0xFF4A6B00);
+  static const Color primaryGreenDark = Color.fromARGB(255, 36, 47, 42);
 
   static ThemeData get lightTheme => _createTheme(Brightness.light);
   static ThemeData get darkTheme => _createTheme(Brightness.dark);
@@ -80,8 +89,11 @@ class AppTheme {
         // No modo claro, usamos a versão escura como primária para garantir contraste em ícones e textos
         primary: isDark ? primaryGreen : primaryGreenDark,
         onPrimary: isDark ? const Color(0xFF1A2520) : Colors.white,
-        secondary: const Color(
-          0xFFCDFF5E,
+        secondary: const Color.fromARGB(
+          255,
+          39,
+          175,
+          98,
         ), // Mantemos a cor original como secundária de destaque
         surface: glassColor,
         onSurface: isDark ? const Color(0xFFE8F0E8) : const Color(0xFF1A2520),
@@ -96,13 +108,10 @@ class AppTheme {
             end: Alignment.bottomRight,
             colors: isDark
                 ? [const Color(0xFF1A2520), const Color(0xFF0F1A15)]
-                : [
-                    const Color(0xFFF5F7F5),
-                    const Color(0xFFE2E9E2),
-                  ], // Fundo claro mais profundo
+                : [const Color(0xFFF5F7F5), const Color(0xFFE2E9E2)],
           ),
           primaryButtonGradient: const LinearGradient(
-            colors: [primaryGreen, Color(0xFFB8E84D)],
+            colors: [primaryGreen, Color.fromARGB(255, 109, 203, 75)],
           ),
           glassGradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -114,6 +123,9 @@ class AppTheme {
                   ]
                 : [Colors.white.withAlpha(230), Colors.white.withAlpha(160)],
           ),
+          backgroundBaseColor: isDark
+              ? const Color(0xFF1A2520)
+              : const Color(0xFFF5F7F5),
         ),
       ],
 
@@ -163,6 +175,11 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
         iconTheme: IconThemeData(
           color: isDark ? const Color(0xFFE8F0E8) : const Color(0xFF1A2520),
         ),

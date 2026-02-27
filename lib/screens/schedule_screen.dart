@@ -36,7 +36,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: _scheduleService.getSchedulesStream(),
             builder: (context, snapshot) {
-              // 1. Estados de Erro e Carregamento
               if (snapshot.hasError) {
                 return Center(child: Text('Erro: ${snapshot.error}'));
               }
@@ -47,7 +46,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return CustomScrollView(
                   slivers: [
-                    AgroAppBar(title: 'Horários'),
+                    const AgroAppBar(),
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: _buildEmptyState(colorScheme),
@@ -56,11 +55,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 );
               }
 
-              // 2. Processamento Firestore
               final schedulesList = snapshot.data!.docs.map((doc) {
                 return {'id': doc.id, ...doc.data()};
               }).toList();
 
+              // Ordenação local (como backup do orderBy do Firestore)
               schedulesList.sort(
                 (a, b) => a['time'].toString().compareTo(b['time'].toString()),
               );
@@ -68,7 +67,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               return CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                  AgroAppBar(title: 'Horários'),
+                  const AgroAppBar(),
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
                       context.horizontalPadding,
@@ -109,7 +108,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ),
           floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           floatingActionButton: Padding(
-            padding: const EdgeInsets.only(bottom: 90),
+            padding: const EdgeInsets.only(bottom: 100),
             child: FloatingActionButton.extended(
               onPressed: () => _handleAddNewSchedule(context),
               label: const Text('Novo Horário'),
@@ -142,8 +141,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isActive
-                ? Colors.green.withAlpha(10)
-                : Colors.grey.withAlpha(10),
+                ? Colors.green.withAlpha(20)
+                : Colors.grey.withAlpha(20),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -162,14 +161,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             Text(
               (s['days'] is List)
                   ? (s['days'] as List).join(', ')
-                  : s['days'] ?? 'Sem dias definidos',
-              style: TextStyle(color: colorScheme.onSurface.withAlpha(70)),
+                  : s['days'] ?? 'Sem dias',
+              style: TextStyle(color: colorScheme.onSurface.withAlpha(100)),
             ),
             Text(
               'Por: ${createdBy.split('@')[0]}',
               style: TextStyle(
                 fontSize: 10,
-                color: colorScheme.onSurface.withAlpha(40),
+                color: colorScheme.onSurface.withAlpha(60),
               ),
             ),
           ],
@@ -179,11 +178,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           value: isActive,
           onChanged: (val) async {
             HapticFeedback.lightImpact();
-            await _scheduleService.toggleStatus(
-              s['id'],
-              val,
-              s['time'] ?? '--:--',
-            );
+            await _scheduleService.toggleStatus(s['id'], val);
           },
         ),
       ),

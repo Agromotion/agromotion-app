@@ -1,4 +1,3 @@
-import 'package:agromotion/components/agro_appbar.dart';
 import 'package:agromotion/components/agro_snackbar.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
@@ -60,8 +59,51 @@ class _AdminsScreenState extends State<AdminsScreen> {
           body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // AppBar Compacta
-              const AgroAppBar(title: 'Acessos'),
+              // Header com botão voltar
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding - 12,
+                  20,
+                  horizontalPadding,
+                  10,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        onPressed: () => Navigator.pop(context),
+                        color: theme.colorScheme.onSurface,
+                        iconSize: 20,
+                      ),
+                      const SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Gestão de Utilizadores",
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "Autorizar novos utilizadores na plataforma",
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface.withAlpha(
+                                  50,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
               SliverPadding(
                 padding: EdgeInsets.symmetric(

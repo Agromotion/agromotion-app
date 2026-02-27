@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:agromotion/components/settings/section_title.dart';
 import 'package:agromotion/components/settings/settings_tile.dart';
+import 'package:agromotion/screens/admins_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +15,6 @@ import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/components/agro_snackbar.dart';
 import 'package:agromotion/components/settings/settings_header.dart';
 import 'package:agromotion/components/settings/settings_footer.dart';
-import 'package:agromotion/components/settings/connection_info_card.dart';
 import 'package:agromotion/components/settings/logout_button.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -31,12 +31,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '0.0.0';
   String _buildNumber = '0';
   String _currentStoragePath = "A carregar...";
+  bool _joystickSwap = false;
 
   @override
   void initState() {
     super.initState();
     _loadPackageInfo();
     _loadStoragePath();
+    _loadJoystickSwap();
   }
 
   /// Carrega informações da build do pacote
@@ -58,6 +60,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _currentStoragePath = path);
   }
 
+  /// Carrega a preferência de troca de joysticks
+  Future<void> _loadJoystickSwap() async {
+    final swap = await _storageService.getJoystickSwap();
+    setState(() => _joystickSwap = swap);
+  }
+
   /// Abre o seletor de pastas e atualiza o estado
   Future<void> _handlePickPath() async {
     final newPath = await _storageService.pickCustomPath();
@@ -70,6 +78,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+  }
+
+  Future<void> _handleUserManagement() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminsScreen()),
+    );
   }
 
   /// Realiza o logout e volta para o ecrã de login
@@ -126,8 +141,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                       const SizedBox(height: 32),
 
-                      const SectionTitle(title: 'Conexão Remota'),
-                      const ConnectionInfoCard(),
+                      const SectionTitle(title: 'Controlo'),
+                      _buildJoystickSwapTile(),
+
+                      const SizedBox(height: 32),
+
+                      const SectionTitle(title: 'Utilizadores'),
+                      _buildUsersTile(),
 
                       const SizedBox(height: 40),
 
@@ -186,6 +206,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: _handlePickPath,
             )
           : null,
+    );
+  }
+
+  Widget _buildUsersTile() {
+    return SettingsTile(
+      icon: Icons.people,
+      title: 'Gestão de Utilizadores',
+      trailing: IconButton(
+        icon: const Icon(Icons.arrow_forward, size: 20),
+        onPressed: _handleUserManagement,
+      ),
+    );
+  }
+
+  Widget _buildJoystickSwapTile() {
+    return SettingsTile(
+      icon: Icons.gamepad_outlined,
+      title: 'Trocar Joysticks',
+      subtitle: const Text(
+        'Troca a posição dos controlos (esquerda/direita)',
+        style: TextStyle(fontSize: 12),
+      ),
+      trailing: Switch(
+        value: _joystickSwap,
+        onChanged: (value) async {
+          await _storageService.setJoystickSwap(value);
+          setState(() => _joystickSwap = value);
+          if (mounted) {
+            AgroSnackbar.show(
+              context,
+              message: value
+                  ? "Joysticks trocados!"
+                  : "Joysticks na posição padrão",
+            );
+          }
+        },
+      ),
     );
   }
 }

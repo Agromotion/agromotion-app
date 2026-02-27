@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 
 class StorageService {
   static const String _storageKey = 'custom_storage_path';
+  static const String _joystickSwapKey = 'joystick_swap_enabled';
 
   // Retorna o caminho de salvamento baseado na plataforma e preferência
   Future<String> getSavePath() async {
@@ -50,5 +51,17 @@ class StorageService {
       await prefs.setString(_storageKey, result);
     }
     return result;
+  }
+
+  /// Obtém a preferência de troca de joysticks
+  Future<bool> getJoystickSwap() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_joystickSwapKey) ?? false;
+  }
+
+  /// Define a preferência de troca de joysticks
+  Future<void> setJoystickSwap(bool swap) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_joystickSwapKey, swap);
   }
 }

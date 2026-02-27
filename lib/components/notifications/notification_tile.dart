@@ -9,6 +9,7 @@ class NotificationTile extends StatelessWidget {
   final String time;
   final NotificationType type;
   final bool isRead;
+  final VoidCallback? onTap; // Added onTap parameter
 
   const NotificationTile({
     super.key,
@@ -17,6 +18,7 @@ class NotificationTile extends StatelessWidget {
     required this.time,
     required this.type,
     this.isRead = false,
+    this.onTap, // Initialize onTap
   });
 
   Color _getTypeColor(NotificationType type) {
@@ -50,70 +52,79 @@ class NotificationTile extends StatelessWidget {
     final theme = Theme.of(context);
     final color = _getTypeColor(type);
 
-    return Opacity(
-      opacity: isRead ? 0.6 : 1.0,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: GlassContainer(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(10),
-                  shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GestureDetector(
+        onTap: onTap, // Handle the tap
+        child: Opacity(
+          opacity: isRead ? 0.6 : 1.0,
+          child: GlassContainer(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(20),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(_getTypeIcon(type), color: color, size: 20),
                 ),
-                child: Icon(_getTypeIcon(type), color: color, size: 20),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: theme.colorScheme.onSurface,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: theme.colorScheme.onSurface,
+                            ),
                           ),
+                          Text(
+                            time,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: theme.colorScheme.onSurface.withAlpha(80),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurface.withAlpha(140),
                         ),
-                        Text(
-                          time,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.colorScheme.onSurface.withAlpha(40),
-                          ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isRead)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(left: 8, top: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withAlpha(100),
+                          blurRadius: 4,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      message,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.colorScheme.onSurface.withAlpha(70),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isRead)
-                Container(
-                  width: 6,
-                  height: 6,
-                  margin: const EdgeInsets.only(left: 8, top: 4),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: BoxShape.circle,
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -1,156 +1,146 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:agromotion/config/app_config.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:agromotion/services/signaling_service.dart';
-import 'telemetry_service.dart';
-import 'media_service.dart';
 
 class WebRTCService {
   RTCPeerConnection? _peerConnection;
-  RTCVideoRenderer remoteRenderer;
+  RTCDataChannel? _dataChannel;
+  final RTCVideoRenderer remoteRenderer;
+
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  String get robotId => AppConfig.robotId;
+
   StreamSubscription? _signalingSubscription;
-  Timer? _qualityTimer;
   bool _isDisposed = false;
-  String _lastAutoQuality = "";
 
-  VoidCallback? onConnectionLost;
-
-  final SignalingService _signaling = SignalingService();
-  final TelemetryService telemetry = TelemetryService();
-  final MediaService media = MediaService();
+  // Status Getters
+  bool get isConnected =>
+      _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
+  bool get isDisposed => _isDisposed;
 
   WebRTCService({required this.remoteRenderer});
 
   Future<void> connect() async {
-    _peerConnection = await createPeerConnection({
-      "sdpSemantics": "unified-plan",
+    if (_isDisposed) return;
+
+    // 1. Peer Connection Configuration
+    // STUN servers allow the App and Pi to find each other behind any WiFi/NAT
+    Map<String, dynamic> configuration = {
       "iceServers": [
         {"urls": "stun:stun.l.google.com:19302"},
+        {"urls": "stun:stun1.l.google.com:19302"},
       ],
-    });
-
-    // Monitorizar estado da ligação para evitar erros de GPU no Windows
-    _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
-      debugPrint("WebRTC: ICE State -> $state");
-
-      if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
-          state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
-        // Se a ligação caiu, limpamos o renderer antes de avisar a UI
-        _cleanupRenderer();
-        onConnectionLost?.call();
-      }
+      "sdpSemantics": "unified-plan",
     };
 
-    await _peerConnection!.addTransceiver(
-      kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
-      init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
-    );
+    _peerConnection = await createPeerConnection(configuration);
 
-    RTCDataChannelInit dcInit = RTCDataChannelInit();
-    final channel = await _peerConnection!.createDataChannel(
-      "commands",
-      dcInit,
-    );
-    telemetry.initialize(channel);
+    // 2. Setup DataChannel for ultra-low latency commands (<30ms)
+    // ordered: false + maxRetransmits: 0 = "UDP-like" (fastest possible for driving)
+    RTCDataChannelInit dcInit = RTCDataChannelInit()
+      ..ordered = false
+      ..maxRetransmits = 0;
 
-    _peerConnection!.onTrack = (RTCTrackEvent event) {
-      if (!_isDisposed && event.track.kind == 'video') {
+    _dataChannel = await _peerConnection!.createDataChannel("commands", dcInit);
+
+    // 3. Handle Remote Video Track (from Pi)
+    _peerConnection!.onTrack = (event) {
+      if (event.track.kind == 'video' && !_isDisposed) {
         remoteRenderer.srcObject = event.streams[0];
       }
     };
 
+    // 4. Handle ICE Candidates
+    // Whenever the App finds a "path" to the internet, it sends it to the Robot via Firestore
+    _peerConnection!.onIceCandidate = (candidate) {
+      _db.collection('robots').doc(robotId).update({
+        'app_candidates': FieldValue.arrayUnion([
+          {
+            'candidate': candidate.candidate,
+            'sdpMid': candidate.sdpMid,
+            'sdpMLineIndex': candidate.sdpMLineIndex,
+          },
+        ]),
+      });
+    };
+
+    // 5. Create WebRTC Offer
     RTCSessionDescription offer = await _peerConnection!.createOffer({
       'offerToReceiveVideo': 1,
+      'offerToReceiveAudio': 0,
     });
     await _peerConnection!.setLocalDescription(offer);
-    await _signaling.sendOffer(offer.sdp!, offer.type!);
 
-    Completer<void> connectedCompleter = Completer();
-    _signalingSubscription = _signaling.getSignalingStream().listen((
-      snapshot,
-    ) async {
-      if (_isDisposed || !snapshot.exists) return;
-      var data = snapshot.data() as Map<String, dynamic>?;
-      var answer = data?['answer'];
+    // 6. Push Offer to Firestore to wake up the Robot
+    await _db.collection('robots').doc(robotId).set({
+      'webrtc_session': {
+        'offer': {'sdp': offer.sdp, 'type': offer.type},
+        'answer': null,
+      },
+      'app_candidates': [],
+      'robot_candidates': [],
+      'last_handshake': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-      if (answer != null && !connectedCompleter.isCompleted) {
-        await _peerConnection!.setRemoteDescription(
-          RTCSessionDescription(answer['sdp'], answer['type']),
-        );
-        telemetry.startPingSequence();
-        connectedCompleter.complete();
-      }
-    });
+    // 7. Listen for the Robot's Answer and ICE Candidates
+    _signalingSubscription = _db
+        .collection('robots')
+        .doc(robotId)
+        .snapshots()
+        .listen((snapshot) async {
+          if (!snapshot.exists || _isDisposed) return;
+          final data = snapshot.data()!;
 
-    try {
-      return await connectedCompleter.future.timeout(
-        const Duration(seconds: 30),
-      );
-    } on TimeoutException {
-      if (telemetry.isConnected) return;
-      rethrow;
+          // Handle Answer from Robot
+          final session = data['webrtc_session'];
+          if (session != null &&
+              session['answer'] != null &&
+              _peerConnection?.getRemoteDescription() == null) {
+            await _peerConnection!.setRemoteDescription(
+              RTCSessionDescription(
+                session['answer']['sdp'],
+                session['answer']['type'],
+              ),
+            );
+            debugPrint("WebRTC: Answer received from Robot.");
+          }
+
+          // Handle ICE Candidates from Robot (Hole Punching)
+          final List? robotCandidates = data['robot_candidates'];
+          if (robotCandidates != null && robotCandidates.isNotEmpty) {
+            for (var c in robotCandidates) {
+              _peerConnection!.addCandidate(
+                RTCIceCandidate(
+                  c['candidate'],
+                  c['sdpMid'],
+                  c['sdpMLineIndex'],
+                ),
+              );
+            }
+          }
+        });
+  }
+
+  /// Sends movement commands directly to the Pi's memory via P2P DataChannel.
+  /// Bypasses all databases for maximum responsiveness.
+  void sendJoystick(double x, double y) {
+    if (isConnected && !_isDisposed) {
+      final String msg = jsonEncode({
+        "x": double.parse(x.toStringAsFixed(2)),
+        "y": double.parse(y.toStringAsFixed(2)),
+      });
+      _dataChannel!.send(RTCDataChannelMessage(msg));
     }
-  }
-
-  /// Limpa o srcObject para evitar que a GPU tente renderizar frames inexistentes
-  void _cleanupRenderer() {
-    remoteRenderer.srcObject = null;
-  }
-
-  // --- Lógica de Qualidade ---
-
-  void startAutoQualityMonitor(Function(String) onQualityChanged) {
-    _qualityTimer?.cancel();
-    _qualityTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (_isDisposed) return;
-
-      double loss = await getConnectionLoss();
-      String newQuality = "";
-
-      if (loss > 5.0) {
-        newQuality = "480";
-      } else if (loss < 1.0) {
-        newQuality = "original";
-      }
-
-      if (newQuality.isNotEmpty && newQuality != _lastAutoQuality) {
-        _lastAutoQuality = newQuality;
-        telemetry.sendCommand("SET_QUALITY", newQuality);
-        onQualityChanged(newQuality);
-      }
-    });
-  }
-
-  void stopAutoQualityMonitor() {
-    _qualityTimer?.cancel();
-  }
-
-  // --- Estatísticas de Rede ---
-
-  Future<double> getConnectionLoss() async {
-    if (_peerConnection == null) return 0.0;
-    try {
-      final stats = await _peerConnection!.getStats();
-      for (var report in stats) {
-        if (report.type == 'inbound-rtp' && report.values['kind'] == 'video') {
-          int lost = report.values['packetsLost'] ?? 0;
-          int received = report.values['packetsReceived'] ?? 0;
-          if ((received + lost) == 0) return 0.0;
-          return (lost / (received + lost)) * 100;
-        }
-      }
-    } catch (e) {
-      debugPrint("Erro ao obter stats: $e");
-    }
-    return 0.0;
   }
 
   void dispose() {
     _isDisposed = true;
-    _qualityTimer?.cancel();
     _signalingSubscription?.cancel();
-    telemetry.dispose();
-    _cleanupRenderer();
+    _dataChannel?.close();
     _peerConnection?.dispose();
+    remoteRenderer.srcObject = null;
   }
 }
