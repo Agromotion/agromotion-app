@@ -6,24 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/settings_screen.dart';
 
-<<<<<<< Updated upstream
 class AgroAppBar extends StatelessWidget {
-  final String title;
-
   final dynamic isOnline;
 
-  const AgroAppBar({super.key, required this.title, this.isOnline = true});
+  const AgroAppBar({super.key, this.isOnline = true});
 
   @override
-=======
-class AgroAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const AgroAppBar({super.key});
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 20);
-
-  @override
->>>>>>> Stashed changes
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 

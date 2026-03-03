@@ -21,7 +21,6 @@ class StatisticsService {
         .get();
 
     List<FlSpot> batterySpots = [];
-    double totalDistance = 0.0;
     double maxTemp = 0.0;
     double avgCpu = 0.0;
 

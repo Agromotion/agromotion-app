@@ -192,7 +192,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       // NOVO: Botão Limpar Tudo
                       IconButton(
                         icon: const Icon(Icons.delete_sweep_outlined),
-                        color: theme.colorScheme.error.withOpacity(0.8),
+                        color: theme.colorScheme.error.withAlpha(80),
                         onPressed: total > 0
                             ? () => _showConfirmClearDialog(theme)
                             : null,

@@ -141,12 +141,12 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
 
     // Ajuste do fundo para Glassmorphism (Dark vs Light)
     final bgColor = widget.isError
-        ? feedbackColor.withOpacity(isDark ? 0.15 : 0.1)
+        ? feedbackColor.withAlpha(isDark ? 15 : 1)
         : (isDark
-              ? colorScheme.surface.withOpacity(0.1)
-              : colorScheme.surface.withOpacity(0.7));
+              ? colorScheme.surface.withAlpha(10)
+              : colorScheme.surface.withAlpha(70));
 
-    final borderColor = feedbackColor.withOpacity(0.3);
+    final borderColor = feedbackColor.withAlpha(30);
     final textColor = isDark ? Colors.white : colorScheme.onSurface;
 
     final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
@@ -195,7 +195,7 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
                                 boxShadow: [
                                   if (!isDark)
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withAlpha(5),
                                       blurRadius: 15,
                                       offset: const Offset(0, 5),
                                     ),

@@ -38,7 +38,7 @@ class UptimeChart extends StatelessWidget {
                     return Text(
                       days[value.toInt() % days.length],
                       style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.7),
+                        color: colorScheme.onSurface.withAlpha(70),
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -61,7 +61,7 @@ class UptimeChart extends StatelessWidget {
                     return Text(
                       '${value.toInt()}h',
                       style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.5),
+                        color: colorScheme.onSurface.withAlpha(50),
                         fontSize: 9,
                       ),
                     );
@@ -77,7 +77,7 @@ class UptimeChart extends StatelessWidget {
               horizontalInterval: 3,
               getDrawingHorizontalLine: (value) {
                 return FlLine(
-                  color: colorScheme.outline.withOpacity(0.1),
+                  color: colorScheme.outline.withAlpha(10),
                   strokeWidth: 1,
                 );
               },

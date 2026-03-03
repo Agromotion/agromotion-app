@@ -60,7 +60,6 @@ class NotificationService {
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       String topic = "robot_01";
       await messaging.subscribeToTopic(topic);
-      print("Subscribed to $topic");
     }
   }
 }

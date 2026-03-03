@@ -34,7 +34,7 @@ class KPICard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: colorScheme.onSurface.withOpacity(0.7),
+                    color: colorScheme.onSurface.withAlpha(70),
                     letterSpacing: 0.3,
                   ),
                 ),

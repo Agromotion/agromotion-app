@@ -3,16 +3,26 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 class VideoFeedDisplay extends StatelessWidget {
   final RTCVideoRenderer renderer;
+  final bool isFullScreen; // NOVO: Para matar as bordas e o ratio
 
-  const VideoFeedDisplay({super.key, required this.renderer});
+  const VideoFeedDisplay({
+    super.key,
+    required this.renderer,
+    this.isFullScreen = false, // Por defeito false
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    if (isFullScreen) {
+      return RTCVideoView(
+        renderer,
+        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+      );
+    }
 
+    final colorScheme = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calcula o Aspect Ratio real do vídeo ou usa 16:9 por defeito
         double videoRatio =
             (renderer.videoWidth > 0 && renderer.videoHeight > 0)
             ? renderer.videoWidth / renderer.videoHeight
@@ -20,7 +30,6 @@ class VideoFeedDisplay extends StatelessWidget {
 
         return Center(
           child: Container(
-            // Restringe o tamanho máximo para nunca ultrapassar o espaço disponível na coluna
             constraints: BoxConstraints(
               maxWidth: constraints.maxWidth,
               maxHeight: constraints.maxHeight,
@@ -33,13 +42,6 @@ class VideoFeedDisplay extends StatelessWidget {
                   color: Colors.black,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: colorScheme.outline.withAlpha(50)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(40),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
                 ),
                 child: RTCVideoView(
                   renderer,

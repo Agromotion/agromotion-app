@@ -24,7 +24,7 @@ class DistanceChart extends StatelessWidget {
               horizontalInterval: 5,
               getDrawingHorizontalLine: (value) {
                 return FlLine(
-                  color: colorScheme.outline.withOpacity(0.1),
+                  color: colorScheme.outline.withAlpha(10),
                   strokeWidth: 1,
                 );
               },
@@ -43,7 +43,7 @@ class DistanceChart extends StatelessWidget {
                     return Text(
                       '${value.toInt()}h',
                       style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.5),
+                        color: colorScheme.onSurface.withAlpha(50),
                         fontSize: 10,
                       ),
                     );
@@ -58,7 +58,7 @@ class DistanceChart extends StatelessWidget {
                     return Text(
                       '${value.toInt()} km',
                       style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.5),
+                        color: colorScheme.onSurface.withAlpha(50),
                         fontSize: 9,
                       ),
                     );
@@ -75,8 +75,8 @@ class DistanceChart extends StatelessWidget {
                 isCurved: true,
                 gradient: LinearGradient(
                   colors: [
-                    Colors.blue.withOpacity(0.8),
-                    Colors.cyan.withOpacity(0.6),
+                    Colors.blue.withAlpha(80),
+                    Colors.cyan.withAlpha(60),
                   ],
                 ),
                 barWidth: 3,

@@ -50,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
 
       if (error != null) {
-        AgroSnackbar.show(context, message: error, isError: true);
+        AgroSnackbar.show(context, message: 'Screenshot guardada com sucesso.');
         if (!kIsWeb) HapticFeedback.vibrate();
       } else {
         if (!kIsWeb) HapticFeedback.lightImpact();

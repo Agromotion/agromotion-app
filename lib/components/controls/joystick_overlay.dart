@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_joystick/flutter_joystick.dart';
-import 'package:agromotion/theme/app_theme.dart';
 
 class JoystickOverlay extends StatefulWidget {
   final Function(double x, double y) onMoveLeft;
@@ -28,57 +27,68 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final customColors = Theme.of(context).extension<AppColorsExtension>()!;
     final colorScheme = Theme.of(context).colorScheme;
-    final int opacity = widget.transparent ? 40 : 80;
 
-    // Adjust side padding: In Normal Mode (Portrait), we hug the edges (10).
-    // In FullScreen (Landscape), we pull them in slightly (60) for ergonomics.
-    final double sidePadding = widget.isFullScreen ? 60 : 20;
+    // Cores Otimizadas: Fundo muito mais subtil (0.05 a 0.15 de opacidade)
+    final Color baseColor = colorScheme.onSurface.withAlpha(
+      widget.isFullScreen ? 8 : 15,
+    );
+    final Color stickColor = colorScheme.primary.withAlpha(60);
+    final Color arrowActiveColor = colorScheme.primary;
+    final Color arrowInactiveColor = colorScheme.onSurface.withAlpha(10);
 
-    return SizedBox(
-      height: 150, // Fixed height to contain the 130px joysticks
-      width: double.infinity,
-      child: Stack(
-        children: [
-          // Left Side Joystick
-          Positioned(
-            left: sidePadding,
-            top: 0,
-            child: _buildJoystick(
-              customColors,
-              colorScheme,
-              opacity,
-              isRotation: widget.swapJoysticks,
-              isLeftInstance: true,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Container(
+            width: constraints.maxWidth,
+            padding: EdgeInsets.symmetric(
+              // Eixo X: Joysticks mais perto do centro no modo FullScreen
+              horizontal: widget.isFullScreen ? 140 : 20,
+              vertical: 5,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildJoystick(
+                  colorScheme,
+                  baseColor,
+                  stickColor,
+                  arrowActiveColor,
+                  arrowInactiveColor,
+                  isRotation: widget.swapJoysticks,
+                ),
+                const Spacer(),
+                _buildJoystick(
+                  colorScheme,
+                  baseColor,
+                  stickColor,
+                  arrowActiveColor,
+                  arrowInactiveColor,
+                  isRotation: !widget.swapJoysticks,
+                ),
+              ],
             ),
           ),
-          // Right Side Joystick
-          Positioned(
-            right: sidePadding,
-            top: 0,
-            child: _buildJoystick(
-              customColors,
-              colorScheme,
-              opacity,
-              isRotation: !widget.swapJoysticks,
-              isLeftInstance: false,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildJoystick(
-    AppColorsExtension customColors,
     ColorScheme colorScheme,
-    int opacity, {
+    Color baseColor,
+    Color stickColor,
+    Color activeA,
+    Color inactiveA, {
     required bool isRotation,
-    required bool isLeftInstance,
   }) {
-    double x = isLeftInstance ? leftX : rightX;
-    double y = isLeftInstance ? leftY : rightY;
+    bool isLeftStick =
+        (!widget.swapJoysticks && !isRotation) ||
+        (widget.swapJoysticks && isRotation);
+    double x = isLeftStick ? leftX : rightX;
+    double y = isLeftStick ? leftY : rightY;
 
     return SizedBox(
       width: 130,
@@ -90,39 +100,37 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
             Icons.arrow_left_rounded,
             Alignment.centerLeft,
             x < -0.3,
-            colorScheme,
-            opacity,
+            activeA,
+            inactiveA,
           ),
           _buildArrow(
             Icons.arrow_right_rounded,
             Alignment.centerRight,
             x > 0.3,
-            colorScheme,
-            opacity,
+            activeA,
+            inactiveA,
           ),
-
           if (!isRotation) ...[
             _buildArrow(
               Icons.arrow_drop_up_rounded,
               Alignment.topCenter,
               y < -0.3,
-              colorScheme,
-              opacity,
+              activeA,
+              inactiveA,
             ),
             _buildArrow(
               Icons.arrow_drop_down_rounded,
               Alignment.bottomCenter,
               y > 0.3,
-              colorScheme,
-              opacity,
+              activeA,
+              inactiveA,
             ),
           ],
-
           Joystick(
             mode: isRotation ? JoystickMode.horizontal : JoystickMode.all,
             listener: (details) {
               setState(() {
-                if (isLeftInstance) {
+                if (isLeftStick) {
                   leftX = details.x;
                   leftY = details.y;
                   widget.onMoveLeft(details.x, details.y);
@@ -135,19 +143,12 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
             },
             base: JoystickBase(
               decoration: JoystickBaseDecoration(
-                color: customColors.glassGradient.colors.first.withAlpha(
-                  opacity,
-                ),
+                color: baseColor,
                 drawArrows: false,
-                drawInnerCircle: true,
               ),
             ),
             stick: JoystickStick(
-              decoration: JoystickStickDecoration(
-                color: customColors.glassGradient.colors.first.withAlpha(
-                  opacity + 40,
-                ),
-              ),
+              decoration: JoystickStickDecoration(color: stickColor),
             ),
           ),
         ],
@@ -159,17 +160,15 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
     IconData icon,
     Alignment alignment,
     bool isActive,
-    ColorScheme colorScheme,
-    int baseOpacity,
+    Color activeColor,
+    Color inactiveColor,
   ) {
     return Align(
       alignment: alignment,
       child: Icon(
         icon,
         size: 30,
-        color: isActive
-            ? colorScheme.primary
-            : Colors.white.withAlpha(baseOpacity),
+        color: isActive ? activeColor : inactiveColor,
       ),
     );
   }

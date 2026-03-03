@@ -71,13 +71,13 @@ class AgroNavBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               color: isSelected
-                  ? colorScheme.primary.withOpacity(0.15)
-                  : colorScheme.onSurface.withOpacity(0.05),
+                  ? colorScheme.primary.withAlpha(15)
+                  : colorScheme.onSurface.withAlpha(5),
               borderRadius: BorderRadius.circular(25),
               border: Border.all(
                 color: isSelected
                     ? colorScheme.primary
-                    : colorScheme.outline.withOpacity(0.2),
+                    : colorScheme.outline.withAlpha(20),
               ),
             ),
             child: Row(
@@ -87,7 +87,7 @@ class AgroNavBar extends StatelessWidget {
                   size: 20,
                   color: isSelected
                       ? colorScheme.primary
-                      : colorScheme.onSurface.withOpacity(0.6),
+                      : colorScheme.onSurface.withAlpha(60),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -95,7 +95,7 @@ class AgroNavBar extends StatelessWidget {
                   style: TextStyle(
                     color: isSelected
                         ? colorScheme.primary
-                        : colorScheme.onSurface.withOpacity(0.6),
+                        : colorScheme.onSurface.withAlpha(60),
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -112,7 +112,6 @@ class AgroNavBar extends StatelessWidget {
     AppColorsExtension customColors,
     ColorScheme colorScheme,
   ) {
-    // Verifica se o índice atual é o da Home (1)
     final bool isSelected = selectedIndex == 1;
 
     return GestureDetector(
@@ -123,12 +122,12 @@ class AgroNavBar extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           gradient: isSelected ? customColors.primaryButtonGradient : null,
-          color: isSelected ? null : colorScheme.onSurface.withOpacity(0.1),
+          color: isSelected ? null : colorScheme.onSurface.withAlpha(10),
           shape: BoxShape.circle,
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: colorScheme.primary.withOpacity(0.3),
+                    color: colorScheme.primary.withAlpha(30),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -137,7 +136,7 @@ class AgroNavBar extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : colorScheme.outline.withOpacity(0.2),
+                : colorScheme.outline.withAlpha(20),
             width: 1,
           ),
         ),
@@ -145,7 +144,7 @@ class AgroNavBar extends StatelessWidget {
           isSelected ? Icons.home : Icons.home_outlined,
           color: isSelected
               ? colorScheme.onPrimary
-              : colorScheme.onSurface.withOpacity(0.6),
+              : colorScheme.onSurface.withAlpha(60),
           size: 30,
         ),
       ),

@@ -29,9 +29,9 @@ class StreamDebugPanel extends StatelessWidget {
     return Container(
       // Fundo sólido semi-transparente para evitar conflitos com RTCVideoView.
       decoration: BoxDecoration(
-        color: colorScheme.surface.withOpacity(0.85),
+        color: colorScheme.surface.withAlpha(85),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.onSurface.withOpacity(0.2)),
+        border: Border.all(color: colorScheme.onSurface.withAlpha(20)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
@@ -39,7 +39,7 @@ class StreamDebugPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(colorScheme, textTheme),
-          Divider(color: colorScheme.onSurface.withOpacity(0.15), height: 20),
+          Divider(color: colorScheme.onSurface.withAlpha(15), height: 20),
           IntrinsicWidth(
             child: Column(
               children: [
@@ -70,7 +70,7 @@ class StreamDebugPanel extends StatelessWidget {
         Text(
           "DIAGNÓSTICO TÉCNICO",
           style: textTheme.labelSmall?.copyWith(
-            color: colorScheme.primary.withOpacity(0.8),
+            color: colorScheme.primary.withAlpha(80),
             fontWeight: FontWeight.bold,
             letterSpacing: 0.8,
           ),
@@ -100,7 +100,7 @@ class _DebugLine extends StatelessWidget {
           Text(
             label,
             style: textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withOpacity(0.6),
+              color: colorScheme.onSurface.withAlpha(60),
               fontFamily: 'monospace',
               fontSize: 11,
             ),
