@@ -46,6 +46,8 @@ dependencies:
   flutter_3d_controller: ^2.3.0
   geolocator: ^14.0.2
   intl: ^0.20.2
+  flutter_native_splash: ^2.4.7
+  flutter_map_location_marker: ^10.2.0
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +74,19 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/logo_w_512.png"
     icon_size: 256
+
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/logo_512.png"
+  fullscreen: true
+
+  android_12:
+    image: "assets/logo_512.png" 
+    color: "#FFFFFF"
+    icon_background_color: "#FFFFFF"
+
+  web: true
 
 flutter:
   uses-material-design: true

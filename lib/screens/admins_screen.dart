@@ -1,9 +1,9 @@
-import 'package:agromotion/components/agro_snackbar.dart';
+import 'package:agromotion/widgets/agro_snackbar.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:agromotion/components/glass_container.dart';
+import 'package:agromotion/widgets/glass_container.dart';
 import '../theme/app_theme.dart';
 
 class AdminsScreen extends StatefulWidget {

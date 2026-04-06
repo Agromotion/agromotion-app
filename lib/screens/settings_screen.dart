@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'package:agromotion/components/settings/section_title.dart';
-import 'package:agromotion/components/settings/settings_tile.dart';
+import 'package:agromotion/widgets/settings/section_title.dart';
+import 'package:agromotion/widgets/settings/settings_tile.dart';
 import 'package:agromotion/screens/admins_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,10 +12,10 @@ import 'package:agromotion/utils/app_logger.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:agromotion/services/storage_service.dart';
 import 'package:agromotion/services/auth_service.dart';
-import 'package:agromotion/components/agro_snackbar.dart';
-import 'package:agromotion/components/settings/settings_header.dart';
-import 'package:agromotion/components/settings/settings_footer.dart';
-import 'package:agromotion/components/settings/logout_button.dart';
+import 'package:agromotion/widgets/agro_snackbar.dart';
+import 'package:agromotion/widgets/settings/settings_header.dart';
+import 'package:agromotion/widgets/settings/settings_footer.dart';
+import 'package:agromotion/widgets/settings/logout_button.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -74,7 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         AgroSnackbar.show(
           context,
-          message: "Local de armazenamento atualizado!",
+          message: "Local de armazenamento atualizado",
         );
       }
     }
@@ -141,19 +141,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                       const SizedBox(height: 32),
 
-                      const SectionTitle(title: 'Controlo'),
-                      _buildJoystickSwapTile(),
+                      // Secções de Joysticks / Gestão de users e logout só aparecem se
+                      // o utilizador estiver atualmente logado
+                      if (isUserLoggedIn) ...[
+                        const SectionTitle(title: 'Controlo'),
+                        _buildJoystickSwapTile(),
 
-                      const SizedBox(height: 32),
+                        const SizedBox(height: 32),
 
-                      const SectionTitle(title: 'Utilizadores'),
-                      _buildUsersTile(),
+                        const SectionTitle(title: 'Utilizadores'),
+                        _buildUsersTile(),
 
-                      const SizedBox(height: 40),
-
-                      if (isUserLoggedIn)
+                        const SizedBox(height: 40),
                         LogoutButton(onPressed: _handleLogout),
-
+                      ],
                       SettingsFooter(
                         appVersion: _appVersion,
                         buildNumber: _buildNumber,

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:agromotion/components/glass_container.dart';
+import 'package:agromotion/widgets/glass_container.dart';
 
 enum NotificationType { info, warning, success, error }
 

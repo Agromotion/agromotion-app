@@ -1,11 +1,11 @@
-import 'package:agromotion/components/agro_loading.dart';
-import 'package:agromotion/components/agro_appbar.dart';
-import 'package:agromotion/components/glass_container.dart';
+import 'package:agromotion/widgets/agro_loading.dart';
+import 'package:agromotion/widgets/agro_appbar.dart';
+import 'package:agromotion/widgets/glass_container.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../components/schedule/add_schedule.dart';
+import '../widgets/schedule/add_schedule.dart';
 import '../utils/dialogs.dart';
 import '../services/schedule_service.dart';
 import '../theme/app_theme.dart';

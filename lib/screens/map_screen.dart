@@ -1,13 +1,26 @@
 import 'dart:async';
 import 'package:agromotion/config/app_config.dart';
+import 'package:agromotion/utils/map/motion_calculator.dart';
+import 'package:agromotion/widgets/map/map_glass_button.dart';
+import 'package:agromotion/widgets/map/map_info_panel.dart';
+import 'package:agromotion/widgets/map/map_markers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:agromotion/components/glass_container.dart';
-
+/// ## User location
+/// Delegated entirely to [CurrentLocationLayer] from
+/// `flutter_map_location_marker`.  It handles GPS permissions, the position
+/// stream, compass heading, accuracy circle and smooth animations
+/// automatically.  We share its default position stream so we can still read
+/// the current user position for the distance/midpoint calculation without
+/// running a second Geolocator subscription.
+///
+/// ## Robot location
+/// Streamed from Firestore.  Speed and heading are derived from consecutive
+/// positions using [MotionCalculator].
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -19,40 +32,55 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   String get _robotId => AppConfig.robotId;
 
+  // ── User (read from CurrentLocationLayer's shared stream) ─────────────────
   LatLng? _userLocation;
+  // The stream is created once and shared between CurrentLocationLayer and our
+  // StreamSubscription so we don't open two parallel GPS sessions.
+  late final Stream<LocationMarkerPosition?> _positionStream;
+  StreamSubscription<LocationMarkerPosition?>? _positionSub;
+
+  // ── Robot ─────────────────────────────────────────────────────────────────
   LatLng? _robotLocation;
+  DateTime? _lastRobotTime;
+  double _robotSpeedKmh = 0;
+  double? _robotHeadingRad;
+
   StreamSubscription? _robotSub;
-  StreamSubscription? _userSub;
   bool _hasRobotError = false;
+
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
 
   @override
   void initState() {
     super.initState();
-    _initUserLocation();
-    _listenToRobot();
-  }
 
-  Future<void> _initUserLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+    // Share the default position stream between the layer and our subscription.
+    _positionStream = const LocationMarkerDataStreamFactory()
+        .fromGeolocatorPositionStream()
+        .asBroadcastStream();
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
-
-    final pos = await Geolocator.getCurrentPosition();
-    if (mounted) {
-      setState(() => _userLocation = LatLng(pos.latitude, pos.longitude));
-    }
-
-    _userSub = Geolocator.getPositionStream().listen((pos) {
-      if (mounted) {
+    _positionSub = _positionStream.listen((pos) {
+      if (pos != null && mounted) {
         setState(() => _userLocation = LatLng(pos.latitude, pos.longitude));
       }
     });
+
+    _listenToRobot();
   }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    _robotSub?.cancel();
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  // -------------------------------------------------------------------------
+  // Robot stream
+  // -------------------------------------------------------------------------
 
   void _listenToRobot() {
     _robotSub = FirebaseFirestore.instance
@@ -60,24 +88,43 @@ class _MapScreenState extends State<MapScreen> {
         .doc(_robotId)
         .snapshots()
         .listen((snap) {
-          if (snap.exists && mounted) {
-            final data = snap.data()!;
-            final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
-            final lat = telemetry['gps_latitude'];
-            final lon = telemetry['gps_longitude'];
-            final isValid = telemetry['gps_is_valid'] ?? false;
+          if (!snap.exists || !mounted) return;
 
-            if (lat != null && lon != null && lat != 0 && isValid) {
-              setState(() {
-                _robotLocation = LatLng(lat, lon);
-                _hasRobotError = false;
-              });
-            } else {
-              setState(() => _hasRobotError = true);
-            }
+          final data = snap.data()!;
+          final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
+          final lat = telemetry['gps_latitude'];
+          final lon = telemetry['gps_longitude'];
+          final isValid = telemetry['gps_is_valid'] ?? false;
+
+          if (lat != null && lon != null && lat != 0 && isValid) {
+            final newLocation = LatLng(lat as double, lon as double);
+            final now = DateTime.now();
+
+            setState(() {
+              _hasRobotError = false;
+              if (_robotLocation != null && _lastRobotTime != null) {
+                _robotSpeedKmh = MotionCalculator.kmh(
+                  from: _robotLocation!,
+                  to: newLocation,
+                  elapsed: now.difference(_lastRobotTime!),
+                );
+                _robotHeadingRad = MotionCalculator.headingRadians(
+                  from: _robotLocation!,
+                  to: newLocation,
+                );
+              }
+              _robotLocation = newLocation;
+              _lastRobotTime = now;
+            });
+          } else {
+            setState(() => _hasRobotError = true);
           }
         });
   }
+
+  // -------------------------------------------------------------------------
+  // Derived values
+  // -------------------------------------------------------------------------
 
   double get _distanceInMeters {
     if (_userLocation == null || _robotLocation == null) return 0;
@@ -88,12 +135,11 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  String get _formattedDistance {
-    if (_distanceInMeters >= 1000) {
-      return '${(_distanceInMeters / 1000).toStringAsFixed(2)} km';
-    }
-    return '${_distanceInMeters.toStringAsFixed(0)} m';
-  }
+  String get _formattedDistance => _distanceInMeters >= 1000
+      ? '${(_distanceInMeters / 1000).toStringAsFixed(2)} km'
+      : '${_distanceInMeters.toStringAsFixed(0)} m';
+
+  String get _formattedSpeed => '${_robotSpeedKmh.toStringAsFixed(1)} km/h';
 
   LatLng get _midPoint {
     if (_userLocation != null && _robotLocation != null) {
@@ -105,22 +151,38 @@ class _MapScreenState extends State<MapScreen> {
     return _userLocation ?? const LatLng(0, 0);
   }
 
-  // --- AJUSTE DE CORES PARA MAPA ---
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = cs.primary;
+    final polylineColor = accent.withAlpha(isDark ? 160 : 90);
+    final badgeBg = isDark ? const Color(0xFF1C2B24) : accent;
+    final badgeText = isDark ? accent : cs.onPrimary;
 
-    // Se estiver no modo claro, usamos uma cor mais escura para a linha e ícones
-    // para não "desaparecerem" no fundo branco do mapa.
-    final accentColor = isDark
-        ? colorScheme.primary
-        : const Color(0xFF1B5E20); // Verde floresta no modo claro
-    final polylineColor = accentColor.withAlpha(70);
+    // Style the CurrentLocationLayer to match the app theme.
+    final locationStyle = LocationMarkerStyle(
+      marker: DefaultLocationMarker(
+        color: Colors.blue.shade700,
+        child: const Icon(Icons.navigation, color: Colors.white, size: 14),
+      ),
+      markerSize: const Size(36, 36),
+      markerDirection: MarkerDirection.heading,
+      showAccuracyCircle: true,
+      accuracyCircleColor: Colors.blue.withAlpha(25),
+      showHeadingSector: true,
+      headingSectorRadius: 60,
+      headingSectorColor: Colors.blue.withAlpha(50),
+    );
 
     return Scaffold(
       body: Stack(
         children: [
+          // ── Map ────────────────────────────────────────────────────────────
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -129,11 +191,18 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: isDark
-                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' // Mapa Escuro
-                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', // Mapa Claro
+                urlTemplate:
+                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
               ),
+
+              // User location — handled by the package (compass, accuracy, animations)
+              CurrentLocationLayer(
+                positionStream: _positionStream,
+                style: locationStyle,
+              ),
+
+              // Polyline user ↔ robot
               if (_userLocation != null && _robotLocation != null)
                 PolylineLayer(
                   polylines: [
@@ -144,256 +213,91 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ],
                 ),
-              MarkerLayer(
-                markers: [
-                  if (_userLocation != null) _buildUserMarker(isDark),
-                  if (_robotLocation != null) _buildRobotMarker(accentColor),
-                ],
-              ),
+
+              // Robot marker
+              if (_robotLocation != null)
+                MarkerLayer(
+                  markers: [
+                    MapMarkers.robot(
+                      _robotLocation!,
+                      accent,
+                      headingRad: _robotHeadingRad,
+                    ),
+                  ],
+                ),
+
+              // Distance badge at midpoint
               if (_userLocation != null && _robotLocation != null)
                 MarkerLayer(
                   markers: [
-                    Marker(
+                    MapMarkers.distanceBadge(
                       point: _midPoint,
-                      width: 100,
-                      height: 40,
-                      child: _buildDistanceBadge(accentColor),
+                      label: _formattedDistance,
+                      accentColor: badgeBg,
+                      textColor: badgeText,
                     ),
                   ],
                 ),
             ],
           ),
-          _buildUIOverlay(context, colorScheme, isDark, accentColor),
-        ],
-      ),
-    );
-  }
 
-  // Melhorei o marcador do utilizador para ter contorno sempre visível
-  Marker _buildUserMarker(bool isDark) => Marker(
-    point: _userLocation!,
-    width: 50,
-    height: 50,
-    child: Icon(
-      Icons.person_pin_circle,
-      color: Colors.blue.shade700,
-      size: 40,
-      shadows: const [Shadow(color: Colors.white, blurRadius: 10)],
-    ),
-  );
-
-  Marker _buildRobotMarker(Color accentColor) => Marker(
-    point: _robotLocation!,
-    width: 50,
-    height: 50,
-    child: Icon(
-      Icons.precision_manufacturing,
-      color: accentColor,
-      size: 40,
-      shadows: const [Shadow(color: Colors.white, blurRadius: 10)],
-    ),
-  );
-
-  Widget _buildDistanceBadge(Color accentColor) {
-    return Container(
-      decoration: BoxDecoration(
-        color: accentColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 4),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          _formattedDistance,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUIOverlay(
-    BuildContext context,
-    ColorScheme colorScheme,
-    bool isDark,
-    Color accentColor,
-  ) {
-    return SafeArea(
-      child: Stack(
-        children: [
-          Positioned(
-            top: 10,
-            left: 20,
-            child: _buildGlassButton(
-              Icons.chevron_left_rounded,
-              () => Navigator.pop(context),
-              colorScheme,
-              isDark,
-            ),
-          ),
-          Positioned(
-            right: 20,
-            bottom: 220,
-            child: Column(
+          // ── UI overlay ─────────────────────────────────────────────────────
+          SafeArea(
+            child: Stack(
               children: [
-                _buildGlassButton(
-                  Icons.my_location,
-                  () {
-                    if (_userLocation != null) {
-                      _mapController.move(_userLocation!, 16.0);
-                    }
-                  },
-                  colorScheme,
-                  isDark,
-                ),
-                const SizedBox(height: 12),
-                if (_robotLocation != null)
-                  _buildGlassButton(
-                    Icons.precision_manufacturing,
-                    () => _mapController.move(_robotLocation!, 16.0),
-                    colorScheme,
-                    isDark,
+                Positioned(
+                  top: 10,
+                  left: 20,
+                  child: MapGlassButton(
+                    icon: Icons.chevron_left_rounded,
+                    onTap: () => Navigator.pop(context),
+                    isDark: isDark,
                   ),
+                ),
+                Positioned(
+                  right: 20,
+                  bottom: 220,
+                  child: Column(
+                    children: [
+                      MapGlassButton(
+                        icon: Icons.my_location,
+                        onTap: () {
+                          if (_userLocation != null) {
+                            _mapController.move(_userLocation!, 16.0);
+                          }
+                        },
+                        isDark: isDark,
+                      ),
+                      const SizedBox(height: 12),
+                      if (_robotLocation != null)
+                        MapGlassButton(
+                          icon: Icons.precision_manufacturing,
+                          onTap: () =>
+                              _mapController.move(_robotLocation!, 16.0),
+                          isDark: isDark,
+                        ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  bottom: 20,
+                  left: 20,
+                  right: 20,
+                  child: MapInfoPanel(
+                    userLocation: _userLocation,
+                    robotLocation: _robotLocation,
+                    formattedDistance: _formattedDistance,
+                    formattedSpeed: _formattedSpeed,
+                    hasRobotError: _hasRobotError,
+                    accentColor: accent,
+                    isDark: isDark,
+                  ),
+                ),
               ],
             ),
           ),
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            child: GlassContainer(
-              // No modo claro, aumentamos a opacidade do vidro para não confundir com o mapa
-              padding: const EdgeInsets.all(16),
-              borderRadius: 24,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildLocationRow(
-                    Icons.person_pin_circle,
-                    'Eu',
-                    _userLocation,
-                    accentColor,
-                    colorScheme,
-                  ),
-                  const SizedBox(height: 10),
-                  _buildLocationRow(
-                    Icons.precision_manufacturing,
-                    'Robô',
-                    _robotLocation,
-                    accentColor,
-                    colorScheme,
-                  ),
-                  if (_robotLocation != null) ...[
-                    const Divider(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.straighten, size: 18, color: accentColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Distância: $_formattedDistance',
-                          style: TextStyle(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (_hasRobotError) _buildErrorState(),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
-  }
-
-  Widget _buildLocationRow(
-    IconData icon,
-    String label,
-    LatLng? loc,
-    Color accentColor,
-    ColorScheme cs,
-  ) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: accentColor),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: cs.onSurface.withAlpha(50),
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              loc != null
-                  ? '${loc.latitude.toStringAsFixed(5)}, ${loc.longitude.toStringAsFixed(5)}'
-                  : 'A localizar...',
-              style: TextStyle(
-                color: cs.onSurface,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGlassButton(
-    IconData icon,
-    VoidCallback onTap,
-    ColorScheme cs,
-    bool isDark,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: GlassContainer(
-        padding: const EdgeInsets.all(12),
-        borderRadius: 50,
-        // No modo claro, o ícone deve ser escuro. No modo escuro, deve ser claro.
-        child: Icon(
-          icon,
-          color: isDark ? Colors.white : Colors.black87,
-          size: 26,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Text(
-        '⚠️ GPS do robô indisponível.',
-        style: TextStyle(
-          color: Colors.red.shade700,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _robotSub?.cancel();
-    _userSub?.cancel();
-    _mapController.dispose();
-    super.dispose();
   }
 }

@@ -1,11 +1,11 @@
 import 'package:agromotion/config/app_config.dart';
-import 'package:agromotion/components/glass_container.dart';
+import 'package:agromotion/widgets/glass_container.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
-import '../components/agro_appbar.dart';
-import '../components/statistics/date_filter_widget.dart';
+import '../widgets/agro_appbar.dart';
+import '../widgets/statistics/date_filter_widget.dart';
 
 enum ChartType { line, bar, pie }
 

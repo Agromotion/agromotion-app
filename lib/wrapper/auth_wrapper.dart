@@ -1,4 +1,4 @@
-import 'package:agromotion/components/agro_loading.dart';
+import 'package:agromotion/widgets/agro_loading.dart';
 import 'package:agromotion/screens/login_screen.dart';
 import 'package:agromotion/screens/main_screen.dart';
 import 'package:agromotion/services/auth_service.dart';

@@ -10,14 +10,11 @@ class ScheduleService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // ID do robô definido como constante ou vindo de um config
   String get _robotId => AppConfig.robotId;
 
-  // Helper para obter a referência da sub-coleção de agendamentos do robô
   CollectionReference<Map<String, dynamic>> get _schedulesRef =>
       _firestore.collection('robots').doc(_robotId).collection('schedules');
 
-  /// Stream em tempo real dos agendamentos do robô
   Stream<QuerySnapshot<Map<String, dynamic>>> getSchedulesStream() {
     return _schedulesRef.orderBy('time').snapshots();
   }

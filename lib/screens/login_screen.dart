@@ -1,11 +1,11 @@
 import 'dart:math' as math;
-import 'package:agromotion/components/agro_loading.dart';
-import 'package:agromotion/components/agro_snackbar.dart';
-import 'package:agromotion/components/login/login_background.dart';
-import 'package:agromotion/components/login/login_footer.dart';
-import 'package:agromotion/components/login/login_text_field.dart';
-import 'package:agromotion/components/login/primary_button.dart';
-import 'package:agromotion/components/login/social_login_button.dart';
+import 'package:agromotion/widgets/agro_loading.dart';
+import 'package:agromotion/widgets/agro_snackbar.dart';
+import 'package:agromotion/widgets/login/login_background.dart';
+import 'package:agromotion/widgets/login/login_footer.dart';
+import 'package:agromotion/widgets/login/login_text_field.dart';
+import 'package:agromotion/widgets/login/primary_button.dart';
+import 'package:agromotion/widgets/login/social_login_button.dart';
 import 'package:agromotion/screens/settings_screen.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -50,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
 
       if (error != null) {
-        AgroSnackbar.show(context, message: 'Screenshot guardada com sucesso.');
+        AgroSnackbar.show(context, message: error);
         if (!kIsWeb) HapticFeedback.vibrate();
       } else {
         if (!kIsWeb) HapticFeedback.lightImpact();

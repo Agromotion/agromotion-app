@@ -10,13 +10,13 @@ import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/theme/app_theme.dart';
 import 'package:agromotion/services/webrtc_service.dart';
 import 'package:agromotion/services/storage_service.dart';
-import 'package:agromotion/components/glass_container.dart';
-import 'package:agromotion/components/agro_snackbar.dart';
-import 'package:agromotion/components/camera/camera_status_view.dart';
-import 'package:agromotion/components/camera/video_feed_display.dart';
-import 'package:agromotion/components/camera/stream_debug_panel.dart';
-import 'package:agromotion/components/controls/joystick_overlay.dart';
-import 'package:agromotion/components/camera/camera_control.dart';
+import 'package:agromotion/widgets/glass_container.dart';
+import 'package:agromotion/widgets/agro_snackbar.dart';
+import 'package:agromotion/widgets/camera/camera_status_view.dart';
+import 'package:agromotion/widgets/camera/video_feed_display.dart';
+import 'package:agromotion/widgets/camera/stream_debug_panel.dart';
+import 'package:agromotion/widgets/controls/joystick_overlay.dart';
+import 'package:agromotion/widgets/camera/camera_control.dart';
 import 'package:agromotion/screens/map_screen.dart';
 
 class CameraScreen extends StatefulWidget {

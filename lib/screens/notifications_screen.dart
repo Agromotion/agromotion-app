@@ -1,9 +1,9 @@
-import 'package:agromotion/components/notifications/notification_tile.dart';
-import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:agromotion/widgets/notifications/notification_tile.dart';
+import 'package:agromotion/utils/responsive_layout.dart';
+import 'package:agromotion/services/notification_service.dart';
 import '../theme/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -14,38 +14,7 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final _email = FirebaseAuth.instance.currentUser?.email;
-
-  CollectionReference get _notifRef => FirebaseFirestore.instance
-      .collection('users')
-      .doc(_email)
-      .collection('notifications');
-
-  Future<void> _markAllAsRead() async {
-    final unread = await _notifRef.where('isRead', isEqualTo: false).get();
-    final batch = FirebaseFirestore.instance.batch();
-    for (var doc in unread.docs) {
-      batch.update(doc.reference, {'isRead': true});
-    }
-    await batch.commit();
-  }
-
-  Future<void> _clearAllNotifications() async {
-    final allDocs = await _notifRef.get();
-    final batch = FirebaseFirestore.instance.batch();
-    for (var doc in allDocs.docs) {
-      batch.delete(doc.reference);
-    }
-    await batch.commit();
-  }
-
-  Future<void> _dismissNotification(String id) async {
-    await _notifRef.doc(id).delete();
-  }
-
-  Future<void> _toggleRead(String id, bool currentStatus) async {
-    await _notifRef.doc(id).update({'isRead': !currentStatus});
-  }
+  final NotificationService _notificationService = NotificationService();
 
   @override
   Widget build(BuildContext context) {
@@ -61,21 +30,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           backgroundColor: Colors.transparent,
           body: SafeArea(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _notifRef
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
+              stream: _notificationService.streamNotifications(),
               builder: (context, snapshot) {
                 final docs = snapshot.data?.docs ?? [];
-                final totalCount = docs.length; // Adiciona isto
+                final totalCount = docs.length;
                 final pendingCount = docs
-                    .where((d) => d['isRead'] == false)
+                    .where(
+                      (d) =>
+                          (d.data() as Map<String, dynamic>)['isRead'] == false,
+                    )
                     .length;
 
                 return CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
                     _buildHeader(theme, pendingCount, totalCount),
-                    if (docs.isEmpty && !snapshot.hasData)
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        docs.isEmpty)
                       const SliverFillRemaining(
                         child: Center(child: CircularProgressIndicator()),
                       )
@@ -103,33 +74,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             final timestamp =
                                 (data['timestamp'] as Timestamp?)?.toDate() ??
                                 DateTime.now();
+                            final bool isRead = data['isRead'] ?? false;
 
                             return Dismissible(
                               key: Key(doc.id),
                               direction: DismissDirection.endToStart,
-                              onDismissed: (direction) =>
-                                  _dismissNotification(doc.id),
-                              background: Container(
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.only(right: 20),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withAlpha(20),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.red,
-                                ),
-                              ),
+                              onDismissed: (direction) => _notificationService
+                                  .deleteNotification(doc.id),
+                              background: _buildDismissibleBackground(),
                               child: NotificationTile(
                                 title: data['title'] ?? '',
                                 message: data['message'] ?? '',
                                 time: DateFormat('HH:mm').format(timestamp),
                                 type: _mapType(data['type']),
-                                isRead: data['isRead'] ?? false,
-                                onTap: () => _toggleRead(
+                                isRead: isRead,
+                                onTap: () => _notificationService.markAsRead(
                                   doc.id,
-                                  data['isRead'] ?? false,
+                                  status: !isRead,
                                 ),
                               ),
                             );
@@ -176,23 +137,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       Text(
                         "$pending Alertas pendentes",
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withAlpha(50),
+                          color: theme.colorScheme.onSurface.withAlpha(128),
                         ),
                       ),
                     ],
                   ),
                   Row(
                     children: [
-                      // Botão Marcar como Lidas
                       IconButton(
                         icon: const Icon(Icons.done_all_rounded),
-                        onPressed: pending > 0 ? _markAllAsRead : null,
+                        onPressed: pending > 0
+                            ? () => _notificationService.markAllAsRead()
+                            : null,
                         tooltip: "Marcar todas como lidas",
                       ),
-                      // NOVO: Botão Limpar Tudo
                       IconButton(
                         icon: const Icon(Icons.delete_sweep_outlined),
-                        color: theme.colorScheme.error.withAlpha(80),
+                        color: theme.colorScheme.error.withAlpha(200),
                         onPressed: total > 0
                             ? () => _showConfirmClearDialog(theme)
                             : null,
@@ -209,7 +170,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  // Dialog de confirmação para não apagar por acidente
+  Widget _buildDismissibleBackground() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.red.withAlpha(30),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.red),
+    );
+  }
+
   void _showConfirmClearDialog(ThemeData theme) {
     showDialog(
       context: context,
@@ -226,7 +199,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           TextButton(
             onPressed: () {
-              _clearAllNotifications();
+              _notificationService.clearAllNotifications();
               Navigator.pop(context);
             },
             child: Text(
@@ -267,7 +240,7 @@ class SectionHeader extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
-          color: Theme.of(context).colorScheme.primary.withAlpha(70),
+          color: Theme.of(context).colorScheme.primary.withAlpha(180),
         ),
       ),
     );

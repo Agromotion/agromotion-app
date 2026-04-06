@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'package:agromotion/config/app_config.dart';
+import 'package:agromotion/widgets/home/battery_chip.dart';
+import 'package:agromotion/widgets/home/home_action_button.dart';
+import 'package:agromotion/widgets/home/home_chip.dart';
+import 'package:agromotion/widgets/home/home_status_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:agromotion/components/agro_appbar.dart';
+import 'package:agromotion/widgets/agro_appbar.dart';
 import 'package:agromotion/screens/camera_screen.dart';
 import 'package:agromotion/screens/map_screen.dart';
-import '../theme/app_theme.dart';
+import 'package:agromotion/theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   final Flutter3DController modelController;
@@ -25,7 +29,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with AutomaticKeepAliveClientMixin {
   bool _isOnline = false;
-  String _batteryPercent = "0%";
+  int _batteryLevel = 0;
+  bool _isCharging = false;
   String get _robotId => AppConfig.robotId;
 
   StreamSubscription? _robotSubscription;
@@ -33,8 +38,6 @@ class _HomeScreenState extends State<HomeScreen>
   Timer? _resumeTimer;
 
   double _currentOrbitY = 0.0;
-
-  // Inclinação para efeito carrossel
   final double _carouselTilt = 25;
 
   bool _isDisposed = false;
@@ -42,6 +45,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   bool get wantKeepAlive => true;
+
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
 
   @override
   void initState() {
@@ -53,15 +60,24 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didUpdateWidget(HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (widget.isVisible != oldWidget.isVisible) {
-      if (widget.isVisible) {
-        _startAutoRotation();
-      } else {
-        _rotationTimer?.cancel();
-      }
+      widget.isVisible ? _startAutoRotation() : _rotationTimer?.cancel();
     }
   }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _rotationTimer?.cancel();
+    _resumeTimer?.cancel();
+    _robotSubscription?.cancel();
+    widget.modelController.onModelLoaded.removeListener(_onModelLoadedHandler);
+    super.dispose();
+  }
+
+  // -------------------------------------------------------------------------
+  // Firebase
+  // -------------------------------------------------------------------------
 
   void _listenToRobotStatus() {
     _robotSubscription = FirebaseFirestore.instance
@@ -69,69 +85,59 @@ class _HomeScreenState extends State<HomeScreen>
         .doc(_robotId)
         .snapshots()
         .listen((snap) {
-          if (snap.exists && mounted && !_isDisposed) {
-            final data = snap.data()!;
-            final status = data['status'] as Map<String, dynamic>? ?? {};
-            final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
+          if (!snap.exists || !mounted || _isDisposed) return;
 
-            if (mounted) {
-              setState(() {
-                _isOnline = status['online'] ?? false;
-                _batteryPercent = "${telemetry['battery_percentage'] ?? 0}%";
-              });
-            }
-          }
+          final data = snap.data()!;
+          final status = data['status'] as Map<String, dynamic>? ?? {};
+          final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
+
+          setState(() {
+            _isOnline = status['online'] ?? false;
+            _batteryLevel =
+                (telemetry['battery_percentage'] as num?)?.toInt() ?? 0;
+            _isCharging = telemetry['is_charging'] ?? false;
+          });
         });
   }
+
+  // -------------------------------------------------------------------------
+  // 3D model rotation
+  // -------------------------------------------------------------------------
 
   void _onModelLoadedHandler() {
     if (!mounted || _isDisposed) return;
 
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
-
       widget.modelController.setCameraTarget(0, 0, 0);
-
-      // Configuração inicial do carrossel
       widget.modelController.setCameraOrbit(
         _carouselTilt,
         _currentOrbitY + 90,
         100,
       );
-
       _startAutoRotation();
     });
   }
 
   void _startAutoRotation() {
     _rotationTimer?.cancel();
-
     if (!widget.isVisible) return;
 
-    _rotationTimer = Timer.periodic(
-      const Duration(milliseconds: 16), // ~60 FPS
-      (timer) {
-        if (!mounted ||
-            _isDisposed ||
-            _isUserInteracting ||
-            !widget.isVisible) {
-          return;
-        }
-
-        // Rotação infinita suave
-        _currentOrbitY = (_currentOrbitY + 0.6) % 360;
-
-        try {
-          widget.modelController.setCameraOrbit(
-            _carouselTilt,
-            _currentOrbitY + 90,
-            100,
-          );
-        } catch (e) {
-          debugPrint("Erro ao orbitar: $e");
-        }
-      },
-    );
+    _rotationTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!mounted || _isDisposed || _isUserInteracting || !widget.isVisible) {
+        return;
+      }
+      _currentOrbitY = (_currentOrbitY + 0.6) % 360;
+      try {
+        widget.modelController.setCameraOrbit(
+          _carouselTilt,
+          _currentOrbitY + 90,
+          100,
+        );
+      } catch (e) {
+        debugPrint('Erro ao orbitar: $e');
+      }
+    });
   }
 
   void _onUserInteractionStart() {
@@ -141,7 +147,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onUserInteractionEnd() {
     _resumeTimer?.cancel();
-
     _resumeTimer = Timer(const Duration(seconds: 2), () {
       if (mounted && !_isDisposed) {
         setState(() => _isUserInteracting = false);
@@ -149,26 +154,16 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  @override
-  void dispose() {
-    _isDisposed = true;
-
-    _rotationTimer?.cancel();
-    _resumeTimer?.cancel();
-    _robotSubscription?.cancel();
-
-    widget.modelController.onModelLoaded.removeListener(_onModelLoadedHandler);
-
-    super.dispose();
-  }
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final customColors = theme.extension<AppColorsExtension>()!;
+    final customColors = Theme.of(context).extension<AppColorsExtension>()!;
+    final cs = Theme.of(context).colorScheme;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
@@ -178,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(gradient: customColors.backgroundGradient),
         child: Stack(
           children: [
+            // 3D model viewer
             Positioned(
               top: screenHeight * 0.18,
               left: 0,
@@ -191,193 +187,81 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Flutter3DViewer(
                       controller: widget.modelController,
                       src: 'assets/models/fp2.glb',
-                      progressBarColor: colorScheme.primary,
+                      progressBarColor: cs.primary,
                     ),
                   ),
                 ),
               ),
             ),
-            _buildTopUI(colorScheme),
+
+            // Top bar: title + status
+            Positioned(
+              top: 60,
+              left: 24,
+              right: 24,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Agromotion',
+                        style: TextStyle(
+                          fontSize: 32,
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      AgroAppBar.buildActions(context),
+                    ],
+                  ),
+                  HomeStatusIndicator(isOnline: _isOnline),
+                ],
+              ),
+            ),
+
+            // Bottom: chips + action button
             Positioned(
               bottom: 110,
               left: 24,
               right: 24,
-              child: _buildBottomContent(customColors, colorScheme),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopUI(ColorScheme colorScheme) {
-    return Positioned(
-      top: 60,
-      left: 24,
-      right: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Agromotion",
-                style: TextStyle(
-                  fontSize: 32,
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              AgroAppBar.buildActions(context),
-            ],
-          ),
-          _buildStatusIndicator(colorScheme),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusIndicator(ColorScheme colorScheme) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _isOnline ? colorScheme.primary : Colors.grey,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          _isOnline ? "Online" : "Offline",
-          style: TextStyle(
-            fontSize: 16,
-            color: _isOnline ? colorScheme.primary : Colors.grey,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBottomContent(
-    AppColorsExtension customColors,
-    ColorScheme colorScheme,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildChip(
-              Icons.battery_charging_full,
-              _batteryPercent,
-              colorScheme,
-            ),
-            const SizedBox(width: 12),
-            _buildMapButton(colorScheme),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildMainActionButton(customColors, colorScheme),
-      ],
-    );
-  }
-
-  Widget _buildChip(IconData icon, String value, ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withAlpha(50),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMapButton(ColorScheme colorScheme) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MapScreen()),
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withAlpha(50),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.map_rounded, size: 16, color: colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text(
-              'Mapa',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      HomeBatteryChip(
+                        level: _batteryLevel,
+                        isCharging: _isCharging,
+                      ),
+                      const SizedBox(width: 12),
+                      HomeChip(
+                        icon: Icons.map_rounded,
+                        label: 'Mapa',
+                        iconColor: cs.primary,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MapScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  HomeActionButton(
+                    onTap: () {
+                      _rotationTimer?.cancel();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CameraScreen()),
+                      ).then((_) => _startAutoRotation());
+                    },
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMainActionButton(
-    AppColorsExtension customColors,
-    ColorScheme colorScheme,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        _rotationTimer?.cancel();
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
-        ).then((_) => _startAutoRotation());
-      },
-      child: Container(
-        height: 65,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: customColors.primaryButtonGradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.primary.withAlpha(30),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Text(
-            "CONDUZIR",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
         ),
       ),
     );

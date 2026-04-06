@@ -1,4 +1,4 @@
-import 'package:agromotion/components/agro_loading.dart';
+import 'package:agromotion/widgets/agro_loading.dart';
 import 'package:flutter/material.dart';
 
 class PrimaryButton extends StatelessWidget {

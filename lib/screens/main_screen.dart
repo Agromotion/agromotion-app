@@ -1,4 +1,4 @@
-import 'package:agromotion/components/agro_navbar.dart';
+import 'package:agromotion/widgets/agro_navbar.dart';
 import 'package:agromotion/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
