@@ -1,15 +1,11 @@
 import 'package:agromotion/models/battery_state.dart';
 import 'package:agromotion/widgets/glass_container.dart';
+import 'package:agromotion/widgets/statistics/shortcut_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:agromotion/models/metric_data.dart';
 
-/// Three live-status cards shown in a column:
-///   1. Battery (percentage + voltage + current + charging state)
-///   2. System (CPU + RAM + temperature)
-///   3. GPS / robot status
 class RealtimePanel extends StatelessWidget {
   const RealtimePanel({super.key, required this.snapshot});
-
   final TelemetrySnapshot snapshot;
 
   @override
@@ -17,19 +13,16 @@ class RealtimePanel extends StatelessWidget {
     return Column(
       children: [
         _BatteryCard(snapshot: snapshot),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _SystemCard(snapshot: snapshot),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _GpsStatusCard(snapshot: snapshot),
       ],
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Battery card
-// ---------------------------------------------------------------------------
-
+// --- Battery Card ---
 class _BatteryCard extends StatelessWidget {
   const _BatteryCard({required this.snapshot});
   final TelemetrySnapshot snapshot;
@@ -53,14 +46,13 @@ class _BatteryCard extends StatelessWidget {
             iconColor: battery.color,
             title: 'Bateria',
             trailing: snapshot.batteryIsCharging
-                ? _StatusBadge(
+                ? const _StatusBadge(
                     label: 'A CARREGAR',
-                    color: const Color(0xFFFDD835),
+                    color: Color(0xFFFDD835),
                   )
                 : null,
           ),
           const SizedBox(height: 16),
-          // Percentage bar
           _PercentageBar(
             value: snapshot.batteryPercentage / 100,
             color: battery.color,
@@ -73,20 +65,17 @@ class _BatteryCard extends StatelessWidget {
               _StatCell(
                 label: 'TENSÃO',
                 value: '${snapshot.batteryVoltage.toStringAsFixed(1)} V',
-                color: cs.onSurface,
                 cs: cs,
               ),
               _StatCell(
                 label: 'CORRENTE',
                 value: '${snapshot.batteryCurrent.toStringAsFixed(1)} A',
-                color: cs.onSurface,
                 cs: cs,
               ),
               _StatCell(
                 label: 'POTÊNCIA',
                 value:
                     '${(snapshot.batteryVoltage * snapshot.batteryCurrent).toStringAsFixed(1)} W',
-                color: cs.onSurface,
                 cs: cs,
               ),
             ],
@@ -97,10 +86,7 @@ class _BatteryCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// System card
-// ---------------------------------------------------------------------------
-
+// --- System Card ---
 class _SystemCard extends StatelessWidget {
   const _SystemCard({required this.snapshot});
   final TelemetrySnapshot snapshot;
@@ -111,10 +97,10 @@ class _SystemCard extends StatelessWidget {
     const cpuColor = Color(0xFF42A5F5);
     const ramColor = Color(0xFF66BB6A);
     final tempColor = snapshot.systemTemperature > 70
-        ? const Color(0xFFEF5350)
+        ? Colors.redAccent
         : snapshot.systemTemperature > 50
-        ? const Color(0xFFFFA726)
-        : const Color(0xFF26C6DA);
+        ? Colors.orangeAccent
+        : Colors.cyan;
 
     return GlassContainer(
       padding: const EdgeInsets.all(16),
@@ -154,10 +140,7 @@ class _SystemCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// GPS / Robot status card
-// ---------------------------------------------------------------------------
-
+// --- GPS Card (Atualizado com atalho para Mapa) ---
 class _GpsStatusCard extends StatelessWidget {
   const _GpsStatusCard({required this.snapshot});
   final TelemetrySnapshot snapshot;
@@ -173,48 +156,57 @@ class _GpsStatusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _CardHeader(
-            icon: Icons.satellite_alt_rounded,
-            iconColor: gpsColor,
-            title: 'GPS & Estado',
-            trailing: _StatusBadge(
-              label: snapshot.gpsIsValid ? 'FIX OK' : 'SEM FIX',
-              color: gpsColor,
-            ),
-          ),
-          const SizedBox(height: 14),
           Row(
             children: [
-              _StatCell(
-                label: 'LATITUDE',
-                value: snapshot.gpsIsValid
-                    ? snapshot.gpsLatitude.toStringAsFixed(5)
-                    : '—',
-                color: cs.onSurface,
-                cs: cs,
+              _CardHeader(
+                icon: Icons.satellite_alt_rounded,
+                iconColor: gpsColor,
+                title: 'Localização',
               ),
-              _StatCell(
-                label: 'LONGITUDE',
-                value: snapshot.gpsIsValid
-                    ? snapshot.gpsLongitude.toStringAsFixed(5)
-                    : '—',
-                color: cs.onSurface,
-                cs: cs,
-              ),
-              _StatCell(
-                label: 'ALTITUDE',
-                value: snapshot.gpsIsValid
-                    ? '${snapshot.gpsAltitude.toStringAsFixed(0)} m'
-                    : '—',
-                color: cs.onSurface,
-                cs: cs,
-              ),
+              const Spacer(),
+              // BOTÃO DINÂMICO DE MAPA
+              MapShortcutButton(gpsColor: gpsColor),
             ],
           ),
+          const SizedBox(height: 14),
+          // Envolvemos os dados num FittedBox para não quebrar em ecrãs pequenos
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              children: [
+                _StatCell(
+                  label: 'LATITUDE',
+                  value: snapshot.gpsIsValid
+                      ? snapshot.gpsLatitude.toStringAsFixed(5)
+                      : '—',
+                  cs: cs,
+                ),
+                const SizedBox(width: 20),
+                _StatCell(
+                  label: 'LONGITUDE',
+                  value: snapshot.gpsIsValid
+                      ? snapshot.gpsLongitude.toStringAsFixed(5)
+                      : '—',
+                  cs: cs,
+                ),
+                const SizedBox(width: 20),
+                _StatCell(
+                  label: 'ALTITUDE',
+                  value: snapshot.gpsIsValid
+                      ? '${snapshot.gpsAltitude.toStringAsFixed(0)}m'
+                      : '—',
+                  cs: cs,
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white10),
           const SizedBox(height: 12),
-          Row(
+          // Pills de estado com Wrap para responsividade
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _StatusPill(
                 icon: snapshot.robotMoving
@@ -223,27 +215,15 @@ class _GpsStatusCard extends StatelessWidget {
                 label: snapshot.robotMoving ? 'Em movimento' : 'Parado',
                 color: snapshot.robotMoving
                     ? const Color(0xFF66BB6A)
-                    : cs.onSurface.withAlpha(80),
+                    : cs.onSurface.withOpacity(0.5),
               ),
-              const SizedBox(width: 10),
               _StatusPill(
                 icon: Icons.videocam_rounded,
-                label: '${snapshot.videoClientCount} cliente(s)',
+                label: '${snapshot.videoClientCount} visualizadores',
                 color: snapshot.videoClientCount > 0
                     ? const Color(0xFF42A5F5)
-                    : cs.onSurface.withAlpha(80),
+                    : cs.onSurface.withOpacity(0.5),
               ),
-              if (snapshot.activeControllerEmail.isNotEmpty) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _StatusPill(
-                    icon: Icons.gamepad_rounded,
-                    label: snapshot.activeControllerEmail.split('@').first,
-                    color: cs.primary,
-                    overflow: true,
-                  ),
-                ),
-              ],
             ],
           ),
         ],
@@ -252,11 +232,13 @@ class _GpsStatusCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Shared sub-widgets
-// ---------------------------------------------------------------------------
+// --- Widgets de Apoio (Helper Widgets) ---
 
 class _CardHeader extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final Widget? trailing;
   const _CardHeader({
     required this.icon,
     required this.iconColor,
@@ -264,32 +246,15 @@ class _CardHeader extends StatelessWidget {
     this.trailing,
   });
 
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final Widget? trailing;
-
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: iconColor.withAlpha(30),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, size: 16, color: iconColor),
-        ),
+        Icon(icon, size: 18, color: iconColor),
         const SizedBox(width: 10),
         Text(
           title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: cs.onSurface,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
         const Spacer(),
         if (trailing != null) trailing!,
@@ -299,19 +264,19 @@ class _CardHeader extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.color, this.icon});
   final String label;
   final Color color;
   final IconData? icon;
+  const _StatusBadge({required this.label, required this.color, this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withAlpha(25),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withAlpha(80), width: 1),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -323,8 +288,8 @@ class _StatusBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
               color: color,
               letterSpacing: 0.5,
             ),
@@ -336,6 +301,10 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _PercentageBar extends StatelessWidget {
+  final double value;
+  final Color color;
+  final String label;
+  final ColorScheme cs;
   const _PercentageBar({
     required this.value,
     required this.color,
@@ -343,36 +312,26 @@ class _PercentageBar extends StatelessWidget {
     required this.cs,
   });
 
-  final double value;
-  final Color color;
-  final String label;
-  final ColorScheme cs;
-
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-          ],
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
         ),
         const SizedBox(height: 8),
         ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: value.clamp(0.0, 1.0),
-            minHeight: 8,
-            backgroundColor: cs.onSurface.withAlpha(20),
+            value: value,
+            minHeight: 6,
+            backgroundColor: Colors.white10,
             valueColor: AlwaysStoppedAnimation(color),
           ),
         ),
@@ -382,6 +341,11 @@ class _PercentageBar extends StatelessWidget {
 }
 
 class _BarRow extends StatelessWidget {
+  final String label;
+  final double value;
+  final String displayValue;
+  final Color color;
+  final ColorScheme cs;
   const _BarRow({
     required this.label,
     required this.value,
@@ -390,34 +354,28 @@ class _BarRow extends StatelessWidget {
     required this.cs,
   });
 
-  final String label;
-  final double value;
-  final String displayValue;
-  final Color color;
-  final ColorScheme cs;
-
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         SizedBox(
-          width: 36,
+          width: 35,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface.withAlpha(120),
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface.withOpacity(0.5),
             ),
           ),
         ),
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
-              value: value.clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: cs.onSurface.withAlpha(15),
+              value: value,
+              minHeight: 4,
+              backgroundColor: Colors.white10,
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
@@ -426,8 +384,8 @@ class _BarRow extends StatelessWidget {
         Text(
           displayValue,
           style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
             color: color,
           ),
         ),
@@ -437,17 +395,10 @@ class _BarRow extends StatelessWidget {
 }
 
 class _StatCell extends StatelessWidget {
-  const _StatCell({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.cs,
-  });
-
   final String label;
   final String value;
-  final Color color;
   final ColorScheme cs;
+  const _StatCell({required this.label, required this.value, required this.cs});
 
   @override
   Widget build(BuildContext context) {
@@ -458,20 +409,14 @@ class _StatCell extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-              color: cs.onSurface.withAlpha(90),
+              fontSize: 8,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface.withOpacity(0.4),
             ),
           ),
-          const SizedBox(height: 3),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -480,52 +425,35 @@ class _StatCell extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
   const _StatusPill({
     required this.icon,
     required this.label,
     required this.color,
-    this.overflow = false,
   });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final bool overflow;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withAlpha(60)),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
-        mainAxisSize: overflow ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
-          overflow
-              ? Expanded(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
         ],
       ),
     );

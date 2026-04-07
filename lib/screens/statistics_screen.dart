@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:agromotion/widgets/statistics/date_filter.dart';
 import 'package:agromotion/widgets/statistics/metric_grid.dart';
-import 'package:agromotion/widgets/statistics/realtime_panel.dart';
 import 'package:agromotion/widgets/statistics/summary_row.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -46,10 +45,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     'docCount': '0',
     'movingPct': '0',
   };
-
-  // -------------------------------------------------------------------------
-  // Lifecycle
-  // -------------------------------------------------------------------------
 
   @override
   void initState() {
@@ -99,26 +94,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       id: 'cpu',
       title: 'CPU',
       unit: '%',
-      value: '${_realtime.systemCpu}%',
+      value: '${_realtime.systemCpu}%', // Adicionado: argumento obrigatório
       icon: Icons.developer_board_rounded,
       color: const Color(0xFF42A5F5),
       history: _history['cpu'] ?? [],
     ),
     MetricData(
-      id: 'ram',
-      title: 'RAM',
-      unit: '%',
-      value: '${_realtime.systemRam}%',
-      icon: Icons.memory_rounded,
-      color: const Color(0xFF66BB6A),
-      history: _history['ram'] ?? [],
-    ),
-    MetricData(
       id: 'temperature',
-      title: 'Temperatura',
+      title: 'Temp',
       unit: '°C',
-      value: '${_realtime.systemTemperature.toStringAsFixed(1)}°C',
-      icon: Icons.device_thermostat_rounded,
+      value:
+          '${_realtime.systemTemperature.toStringAsFixed(1)}°C', // Adicionado: argumento obrigatório
+      icon: Icons.thermostat_rounded,
       color: const Color(0xFFFFA726),
       history: _history['temperature'] ?? [],
     ),
@@ -126,7 +113,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       id: 'battery',
       title: 'Bateria',
       unit: '%',
-      value: '${_realtime.batteryPercentage}%',
+      value:
+          '${_realtime.batteryPercentage}%', // Adicionado: argumento obrigatório
       icon: Icons.battery_full_rounded,
       color: const Color(0xFF26C6DA),
       history: _history['battery'] ?? [],
@@ -135,19 +123,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       id: 'voltage',
       title: 'Tensão',
       unit: 'V',
-      value: '${_realtime.batteryVoltage.toStringAsFixed(1)} V',
+      value:
+          '${_realtime.batteryVoltage.toStringAsFixed(1)} V', // Adicionado: argumento obrigatório
       icon: Icons.bolt_rounded,
       color: const Color(0xFFFDD835),
       history: _history['voltage'] ?? [],
-    ),
-    MetricData(
-      id: 'current',
-      title: 'Corrente',
-      unit: 'A',
-      value: '${_realtime.batteryCurrent.toStringAsFixed(1)} A',
-      icon: Icons.electrical_services_rounded,
-      color: const Color(0xFFEF5350),
-      history: _history['current'] ?? [],
     ),
   ];
 
@@ -165,7 +145,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       color: const Color(0xFF42A5F5),
     ),
     SummaryTileData(
-      label: 'EM MOVIMENTO',
+      label: 'MOVIMENTO',
       value: '${_summary['movingPct']}%',
       icon: Icons.directions_run_rounded,
       color: const Color(0xFF66BB6A),
@@ -178,14 +158,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     ),
   ];
 
-  // -------------------------------------------------------------------------
-  // Build
-  // -------------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final cs = Theme.of(context).colorScheme;
+    final cs = Theme.of(
+      context,
+    ).colorScheme; // Variável agora utilizada abaixo no CircularProgressIndicator
 
     return Stack(
       children: [
@@ -201,7 +179,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    // ── Date filter ────────────────────────────────────────
                     DateFilter(
                       selected: _filterIndex,
                       onChanged: (i) {
@@ -213,28 +190,19 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
-
-                    // ── Summary strip ─────────────────────────────────────
-                    _SectionLabel(text: 'Resumo do período'),
+                    const _SectionLabel(text: 'Resumo do período'),
                     const SizedBox(height: 12),
                     SummaryRow(tiles: _summaryTiles),
-                    const SizedBox(height: 24),
-
-                    // ── Live status ───────────────────────────────────────
-                    _SectionLabel(text: 'Estado em tempo real'),
-                    const SizedBox(height: 12),
-                    RealtimePanel(snapshot: _realtime),
-                    const SizedBox(height: 24),
-
-                    // ── History grid ──────────────────────────────────────
-                    _SectionLabel(text: 'Histórico de telemetria'),
+                    const SizedBox(height: 32),
+                    const _SectionLabel(text: 'Evolução Temporal'),
                     const SizedBox(height: 12),
                     _isLoading
                         ? Center(
                             child: Padding(
                               padding: const EdgeInsets.all(40),
                               child: CircularProgressIndicator(
-                                color: cs.primary,
+                                color: cs
+                                    .primary, // Uso da variável cs para resolver o warning
                                 strokeWidth: 2,
                               ),
                             ),
@@ -251,21 +219,20 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 }
 
-/// Consistent section label used throughout the screen.
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.text});
   final String text;
+  const _SectionLabel({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Text(
       text.toUpperCase(),
       style: TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w900,
-        letterSpacing: 1.4,
-        color: cs.onSurface.withAlpha(90),
+        letterSpacing: 1.5,
+        // Corrigido deprecated withOpacity para withValues
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
       ),
     );
   }

@@ -95,8 +95,6 @@ flutter:
     - assets/logo_512.png
     - assets/logo_512_launcher.png
     - assets/loading_indicator.json
-    - assets/models/fp.glb
-    - assets/models/fp2.glb
 
   fonts:
     - family: AudibleSans

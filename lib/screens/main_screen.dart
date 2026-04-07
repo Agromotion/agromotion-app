@@ -16,7 +16,6 @@ class _MainScreenState extends State<MainScreen> {
   int _index = 1; // Começa no Home (centro)
   late PageController _pageController;
 
-  final Flutter3DController _modelController = Flutter3DController();
   @override
   void initState() {
     super.initState();
@@ -39,7 +38,7 @@ class _MainScreenState extends State<MainScreen> {
         onPageChanged: (i) => setState(() => _index = i),
         children: [
           const ScheduleScreen(),
-          HomeScreen(modelController: _modelController, isVisible: _index == 1),
+          HomeScreen(isVisible: _index == 1),
           const StatisticsScreen(),
         ],
       ),
