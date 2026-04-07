@@ -82,7 +82,7 @@ flutter_native_splash:
   fullscreen: true
 
   android_12:
-    image: "assets/logo_512.png" 
+    image: "assets/logo_512_launcher.png" 
     color: "#FFFFFF"
     icon_background_color: "#FFFFFF"
 

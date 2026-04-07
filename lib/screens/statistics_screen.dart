@@ -1,35 +1,14 @@
-import 'package:agromotion/config/app_config.dart';
-import 'package:agromotion/widgets/glass_container.dart';
+import 'dart:async';
+import 'package:agromotion/widgets/statistics/date_filter.dart';
+import 'package:agromotion/widgets/statistics/metric_grid.dart';
+import 'package:agromotion/widgets/statistics/realtime_panel.dart';
+import 'package:agromotion/widgets/statistics/summary_row.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../theme/app_theme.dart';
-import '../widgets/agro_appbar.dart';
-import '../widgets/statistics/date_filter_widget.dart';
-
-enum ChartType { line, bar, pie }
-
-class MetricData {
-  final String id;
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final List<FlSpot> history;
-  final ChartType chartType;
-  final String unit;
-
-  MetricData({
-    required this.id,
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.history,
-    required this.chartType,
-    this.unit = '',
-  });
-}
+import 'package:agromotion/theme/app_theme.dart';
+import 'package:agromotion/widgets/agro_appbar.dart';
+import 'package:agromotion/models/metric_data.dart';
+import 'package:agromotion/services/statistics_service.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -39,163 +18,179 @@ class StatisticsScreen extends StatefulWidget {
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
-  final DateTime _startDate = DateTime.now().subtract(const Duration(days: 1));
-  final DateTime _endDate = DateTime.now();
-  int _selectedFilter = 0;
+  final _service = StatisticsService();
+  StreamSubscription? _rtSub;
 
-  // Mapas para armazenar o histórico de cada KPI
-  Map<String, List<FlSpot>> _historyMap = {};
-  Map<String, String> _currentValues = {};
+  // ── Date range ─────────────────────────────────────────────────────────────
+  int _filterIndex = 0;
+  DateTime _endDate = DateTime.now();
+  DateTime get _startDate => _endDate.subtract(
+    Duration(
+      days: _filterIndex == 0
+          ? 1
+          : _filterIndex == 1
+          ? 7
+          : 30,
+    ),
+  );
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  bool _isLoading = true;
+  TelemetrySnapshot _realtime = const TelemetrySnapshot();
+  Map<String, List<FlSpot>> _history = {};
+  Map<String, String> _summary = {
+    'maxTemp': '0',
+    'minTemp': '0',
+    'avgCpu': '0',
+    'maxCpu': '0',
+    'docCount': '0',
+    'movingPct': '0',
+  };
+
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
 
   @override
   void initState() {
     super.initState();
-    _fetchHistoryData();
-  }
-
-  Future<void> _fetchHistoryData() async {
-    try {
-      final query = await FirebaseFirestore.instance
-          .collection('robots')
-          .doc(AppConfig.robotId)
-          .collection('telemetry_history')
-          .where('timestamp', isGreaterThanOrEqualTo: _startDate)
-          .where('timestamp', isLessThanOrEqualTo: _endDate)
-          .orderBy('timestamp', descending: false)
-          .get();
-
-      // Inicializar listas limpas
-      Map<String, List<FlSpot>> newHistory = {
-        'bat': [],
-        'cpu': [],
-        'tmp': [],
-        'rssi': [],
-        'mem': [],
-        'lat': [],
-        'load': [],
-      };
-
-      for (var doc in query.docs) {
-        final data = doc.data();
-        final ts = (data['timestamp'] as Timestamp).toDate();
-        double x = ts.difference(_startDate).inMinutes / 60.0;
-
-        newHistory['bat']!.add(
-          FlSpot(x, (data['battery_percentage'] ?? 0).toDouble()),
-        );
-        newHistory['cpu']!.add(FlSpot(x, (data['system_cpu'] ?? 0).toDouble()));
-        newHistory['tmp']!.add(
-          FlSpot(x, (data['system_temperature'] ?? 0).toDouble()),
-        );
-        newHistory['rssi']!.add(
-          FlSpot(x, (data['rssi'] ?? -70).toDouble().abs()),
-        ); // Abs para gráfico melhor
-        newHistory['mem']!.add(FlSpot(x, (data['ram_usage'] ?? 0).toDouble()));
-        newHistory['lat']!.add(FlSpot(x, (data['latency'] ?? 0).toDouble()));
-        newHistory['load']!.add(
-          FlSpot(x, (data['motor_load'] ?? 0).toDouble()),
-        );
-      }
-
+    _fetchHistory();
+    _rtSub = _service.getRealtimeStatus().listen((snap) {
+      if (!snap.exists || !mounted) return;
+      final data = snap.data()!;
       setState(() {
-        _historyMap = newHistory;
-        if (query.docs.isNotEmpty) {
-          final last = query.docs.last.data();
-          _currentValues = {
-            'bat': "${last['battery_percentage'] ?? 0}%",
-            'cpu': "${last['system_cpu'] ?? 0}%",
-            'tmp': "${last['system_temperature'] ?? 0}°C",
-            'rssi': "${last['rssi'] ?? 0} dBm",
-            'mem': "${last['ram_usage'] ?? 0}MB",
-            'lat': "${last['latency'] ?? 0}ms",
-            'load': "${last['motor_load'] ?? 0}%",
-          };
-        }
+        _realtime = TelemetrySnapshot.fromMap(
+          data['telemetry'] as Map<String, dynamic>? ?? {},
+        );
       });
-    } catch (e) {}
+    });
   }
 
-  List<MetricData> get _allMetrics => [
-    MetricData(
-      id: 'bat',
-      title: 'Bateria',
-      value: _currentValues['bat'] ?? '0%',
-      icon: Icons.battery_charging_full,
-      color: Colors.greenAccent,
-      history: _historyMap['bat'] ?? [],
-      chartType: ChartType.pie,
-      unit: '%',
-    ),
+  @override
+  void dispose() {
+    _rtSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchHistory() async {
+    setState(() => _isLoading = true);
+    final res = await _service.getHistoryData(_startDate, _endDate);
+    if (!mounted) return;
+    setState(() {
+      _history = Map<String, List<FlSpot>>.from(res['history'] ?? {});
+      _summary = {
+        'maxTemp': res['maxTemp'],
+        'minTemp': res['minTemp'],
+        'avgCpu': res['avgCpu'],
+        'maxCpu': res['maxCpu'],
+        'docCount': res['docCount'],
+        'movingPct': res['movingPct'],
+      };
+      _isLoading = false;
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Derived metric list for the history grid
+  // -------------------------------------------------------------------------
+
+  List<MetricData> get _metrics => [
     MetricData(
       id: 'cpu',
-      title: 'Uso CPU',
-      value: _currentValues['cpu'] ?? '0%',
-      icon: Icons.memory,
-      color: Colors.blueAccent,
-      history: _historyMap['cpu'] ?? [],
-      chartType: ChartType.line,
+      title: 'CPU',
       unit: '%',
+      value: '${_realtime.systemCpu}%',
+      icon: Icons.developer_board_rounded,
+      color: const Color(0xFF42A5F5),
+      history: _history['cpu'] ?? [],
     ),
     MetricData(
-      id: 'tmp',
+      id: 'ram',
+      title: 'RAM',
+      unit: '%',
+      value: '${_realtime.systemRam}%',
+      icon: Icons.memory_rounded,
+      color: const Color(0xFF66BB6A),
+      history: _history['ram'] ?? [],
+    ),
+    MetricData(
+      id: 'temperature',
       title: 'Temperatura',
-      value: _currentValues['tmp'] ?? '0°C',
-      icon: Icons.thermostat,
-      color: Colors.orangeAccent,
-      history: _historyMap['tmp'] ?? [],
-      chartType: ChartType.line,
       unit: '°C',
+      value: '${_realtime.systemTemperature.toStringAsFixed(1)}°C',
+      icon: Icons.device_thermostat_rounded,
+      color: const Color(0xFFFFA726),
+      history: _history['temperature'] ?? [],
     ),
     MetricData(
-      id: 'mem',
-      title: 'Memória RAM',
-      value: _currentValues['mem'] ?? '0MB',
-      icon: Icons.storage,
-      color: Colors.purpleAccent,
-      history: _historyMap['mem'] ?? [],
-      chartType: ChartType.bar,
-      unit: 'MB',
-    ),
-    MetricData(
-      id: 'rssi',
-      title: 'Sinal Wi-Fi',
-      value: _currentValues['rssi'] ?? '0 dBm',
-      icon: Icons.wifi,
-      color: Colors.cyanAccent,
-      history: _historyMap['rssi'] ?? [],
-      chartType: ChartType.line,
-      unit: 'dBm',
-    ),
-    MetricData(
-      id: 'lat',
-      title: 'Latência',
-      value: _currentValues['lat'] ?? '0ms',
-      icon: Icons.speed,
-      color: Colors.redAccent,
-      history: _historyMap['lat'] ?? [],
-      chartType: ChartType.bar,
-      unit: 'ms',
-    ),
-    MetricData(
-      id: 'load',
-      title: 'Carga Motor',
-      value: _currentValues['load'] ?? '0%',
-      icon: Icons.settings_input_component,
-      color: Colors.yellowAccent,
-      history: _historyMap['load'] ?? [],
-      chartType: ChartType.line,
+      id: 'battery',
+      title: 'Bateria',
       unit: '%',
+      value: '${_realtime.batteryPercentage}%',
+      icon: Icons.battery_full_rounded,
+      color: const Color(0xFF26C6DA),
+      history: _history['battery'] ?? [],
+    ),
+    MetricData(
+      id: 'voltage',
+      title: 'Tensão',
+      unit: 'V',
+      value: '${_realtime.batteryVoltage.toStringAsFixed(1)} V',
+      icon: Icons.bolt_rounded,
+      color: const Color(0xFFFDD835),
+      history: _history['voltage'] ?? [],
+    ),
+    MetricData(
+      id: 'current',
+      title: 'Corrente',
+      unit: 'A',
+      value: '${_realtime.batteryCurrent.toStringAsFixed(1)} A',
+      icon: Icons.electrical_services_rounded,
+      color: const Color(0xFFEF5350),
+      history: _history['current'] ?? [],
     ),
   ];
 
+  List<SummaryTileData> get _summaryTiles => [
+    SummaryTileData(
+      label: 'TEMP. MÁX',
+      value: '${_summary['maxTemp']}°C',
+      icon: Icons.thermostat_rounded,
+      color: const Color(0xFFFFA726),
+    ),
+    SummaryTileData(
+      label: 'MÉDIA CPU',
+      value: '${_summary['avgCpu']}%',
+      icon: Icons.developer_board_rounded,
+      color: const Color(0xFF42A5F5),
+    ),
+    SummaryTileData(
+      label: 'EM MOVIMENTO',
+      value: '${_summary['movingPct']}%',
+      icon: Icons.directions_run_rounded,
+      color: const Color(0xFF66BB6A),
+    ),
+    SummaryTileData(
+      label: 'REGISTOS',
+      value: _summary['docCount'] ?? '0',
+      icon: Icons.history_rounded,
+      color: const Color(0xFFCE93D8),
+    ),
+  ];
+
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    final customColors = Theme.of(context).extension<AppColorsExtension>()!;
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final cs = Theme.of(context).colorScheme;
 
     return Stack(
       children: [
         Container(
-          decoration: BoxDecoration(gradient: customColors.backgroundGradient),
+          decoration: BoxDecoration(gradient: colors.backgroundGradient),
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
@@ -203,21 +198,48 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             slivers: [
               const AgroAppBar(),
               SliverPadding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    DateFilterWidget(
-                      selectedFilter: _selectedFilter,
-                      onFilterChanged: (f) {
-                        setState(() => _selectedFilter = f);
-                        _fetchHistoryData();
+                    // ── Date filter ────────────────────────────────────────
+                    DateFilter(
+                      selected: _filterIndex,
+                      onChanged: (i) {
+                        setState(() {
+                          _filterIndex = i;
+                          _endDate = DateTime.now();
+                        });
+                        _fetchHistory();
                       },
-                      onCustomDatePressed: () {},
                     ),
-                    const SizedBox(height: 25),
-                    _buildSectionLabel("Painel de Telemetria"),
-                    const SizedBox(height: 15),
-                    _buildMetricsGrid(),
+                    const SizedBox(height: 24),
+
+                    // ── Summary strip ─────────────────────────────────────
+                    _SectionLabel(text: 'Resumo do período'),
+                    const SizedBox(height: 12),
+                    SummaryRow(tiles: _summaryTiles),
+                    const SizedBox(height: 24),
+
+                    // ── Live status ───────────────────────────────────────
+                    _SectionLabel(text: 'Estado em tempo real'),
+                    const SizedBox(height: 12),
+                    RealtimePanel(snapshot: _realtime),
+                    const SizedBox(height: 24),
+
+                    // ── History grid ──────────────────────────────────────
+                    _SectionLabel(text: 'Histórico de telemetria'),
+                    const SizedBox(height: 12),
+                    _isLoading
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(40),
+                              child: CircularProgressIndicator(
+                                color: cs.primary,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          )
+                        : MetricsGrid(metrics: _metrics, startTime: _startDate),
                   ]),
                 ),
               ),
@@ -227,211 +249,24 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       ],
     );
   }
-
-  Widget _buildSectionLabel(String label) {
-    return Text(
-      label.toUpperCase(),
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        color: Colors.white54,
-        letterSpacing: 1.5,
-      ),
-    );
-  }
-
-  Widget _buildMetricsGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _allMetrics.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 2.4,
-      ),
-      itemBuilder: (context, index) {
-        final m = _allMetrics[index];
-        return GestureDetector(
-          onTap: () => _showMetricPopup(m),
-          child: GlassContainer(
-            borderRadius: 15,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Icon(m.icon, color: m.color, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        m.title,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white54,
-                        ),
-                      ),
-                      Text(
-                        m.value,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showMetricPopup(MetricData metric) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _MetricPopup(metric: metric),
-    );
-  }
 }
 
-class _MetricPopup extends StatelessWidget {
-  final MetricData metric;
-  const _MetricPopup({required this.metric});
+/// Consistent section label used throughout the screen.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.text});
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
-      borderRadius: 25,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(metric.icon, color: metric.color),
-                  const SizedBox(width: 12),
-                  Text(
-                    metric.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                metric.value,
-                style: TextStyle(
-                  fontSize: 18,
-                  color: metric.color,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          SizedBox(height: 220, child: _buildChart()),
-          const SizedBox(height: 30),
-          TextButton(
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.white10,
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Fechar", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+    final cs = Theme.of(context).colorScheme;
+    return Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.4,
+        color: cs.onSurface.withAlpha(90),
       ),
-    );
-  }
-
-  Widget _buildChart() {
-    if (metric.history.isEmpty) {
-      return const Center(child: Text("Sem dados no período"));
-    }
-
-    switch (metric.chartType) {
-      case ChartType.line:
-        return LineChart(_lineData());
-      case ChartType.bar:
-        return BarChart(_barData());
-      case ChartType.pie:
-        return PieChart(_pieData());
-    }
-  }
-
-  LineChartData _lineData() {
-    return LineChartData(
-      gridData: const FlGridData(show: false),
-      titlesData: const FlTitlesData(show: false),
-      borderData: FlBorderData(show: false),
-      lineBarsData: [
-        LineChartBarData(
-          spots: metric.history,
-          isCurved: true,
-          color: metric.color,
-          barWidth: 4,
-          isStrokeCapRound: true,
-          dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(
-            show: true,
-            color: metric.color.withAlpha(20),
-          ),
-        ),
-      ],
-    );
-  }
-
-  BarChartData _barData() {
-    return BarChartData(
-      gridData: const FlGridData(show: false),
-      titlesData: const FlTitlesData(show: false),
-      borderData: FlBorderData(show: false),
-      barGroups: metric.history
-          .take(10)
-          .map(
-            (s) => BarChartGroupData(
-              x: s.x.toInt(),
-              barRods: [
-                BarChartRodData(toY: s.y, color: metric.color, width: 15),
-              ],
-            ),
-          )
-          .toList(),
-    );
-  }
-
-  PieChartData _pieData() {
-    final val = metric.history.last.y;
-    return PieChartData(
-      sections: [
-        PieChartSectionData(
-          value: val,
-          color: metric.color,
-          radius: 50,
-          title: '${val.toInt()}%',
-          titleStyle: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        PieChartSectionData(
-          value: 100 - val,
-          color: Colors.white10,
-          radius: 50,
-          title: '',
-        ),
-      ],
-      centerSpaceRadius: 40,
     );
   }
 }

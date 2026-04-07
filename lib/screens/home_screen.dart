@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen>
             _isOnline = status['online'] ?? false;
             _batteryLevel =
                 (telemetry['battery_percentage'] as num?)?.toInt() ?? 0;
-            _isCharging = telemetry['is_charging'] ?? false;
+            _isCharging = telemetry['battery_is_charging'] ?? false;
           });
         });
   }

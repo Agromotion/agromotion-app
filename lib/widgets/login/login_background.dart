@@ -18,8 +18,8 @@ class _LoginBackgroundState extends State<LoginBackground> {
   bool _isInitialized = false;
 
   final List<String> _videoUrls = [
-    'https://res.cloudinary.com/dttvwjnxn/video/upload/f_auto,q_auto/v1769002678/video2_rvlrzi.mp4',
-    'https://res.cloudinary.com/dttvwjnxn/video/upload/f_auto,q_auto/v1769002677/video3_hjka7u.mp4',
+    'https://res.cloudinary.com/dttvwjnxn/video/upload/q_auto/f_auto/v1775564764/DJI_0625_mnurrf.mp4',
+    'https://res.cloudinary.com/dttvwjnxn/video/upload/q_auto/f_auto/v1775564771/DJI_0628_tznwih.mp4',
   ];
 
   @override
