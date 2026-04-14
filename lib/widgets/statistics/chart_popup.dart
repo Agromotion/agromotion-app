@@ -162,7 +162,6 @@ class ChartPopup extends StatelessWidget {
       case ChartType.pie:
         return PieChart(_pieData(cs));
       case ChartType.line:
-      default:
         return LineChart(_lineData(cs));
     }
   }

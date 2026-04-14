@@ -25,7 +25,7 @@ dependencies:
   http: ^1.6.0
   googleapis_auth: ^2.0.0
   logger: ^2.6.2
-  lottie: ^3.3.2
+  lottie: 3.1.2
   flutter_cache_manager: ^3.4.1
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
@@ -46,8 +46,14 @@ dependencies:
   flutter_3d_controller: ^2.3.0
   geolocator: ^14.0.2
   intl: ^0.20.2
-  flutter_native_splash: ^2.4.7
+  flutter_native_splash: ^2.4.4
   flutter_map_location_marker: ^10.2.0
+  excel: ^4.0.6
+  pdf: ^3.10.0
+  printing: ^5.11.0
+  share_plus: ^7.1.0
+  universal_html: ^2.3.0
+
 
 dev_dependencies:
   flutter_test:

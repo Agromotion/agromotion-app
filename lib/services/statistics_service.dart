@@ -102,6 +102,22 @@ class StatisticsService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getRawHistoryData(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final query = await _db
+        .collection('robots')
+        .doc(robotId)
+        .collection('telemetry-history')
+        .where('timestamp', isGreaterThanOrEqualTo: start)
+        .where('timestamp', isLessThanOrEqualTo: end)
+        .orderBy('timestamp')
+        .get();
+
+    return query.docs.map((doc) => doc.data()).toList();
+  }
+
   DateTime? _toDate(dynamic value) {
     if (value is Timestamp) return value.toDate();
     if (value is String) return DateTime.tryParse(value);

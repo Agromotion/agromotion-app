@@ -1,7 +1,6 @@
 import 'package:agromotion/widgets/agro_navbar.dart';
 import 'package:agromotion/screens/home_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 import 'schedule_screen.dart';
 import 'statistics_screen.dart';
 

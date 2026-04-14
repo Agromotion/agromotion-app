@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:agromotion/screens/reports_screen.dart';
 import 'package:agromotion/widgets/statistics/date_filter.dart';
 import 'package:agromotion/widgets/statistics/metric_grid.dart';
 import 'package:agromotion/widgets/statistics/summary_row.dart';
@@ -85,16 +86,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Derived metric list for the history grid
-  // -------------------------------------------------------------------------
-
   List<MetricData> get _metrics => [
     MetricData(
       id: 'cpu',
       title: 'CPU',
       unit: '%',
-      value: '${_realtime.systemCpu}%', // Adicionado: argumento obrigatório
+      value: '${_realtime.systemCpu}%',
       icon: Icons.developer_board_rounded,
       color: const Color(0xFF42A5F5),
       history: _history['cpu'] ?? [],
@@ -103,8 +100,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       id: 'temperature',
       title: 'Temp',
       unit: '°C',
-      value:
-          '${_realtime.systemTemperature.toStringAsFixed(1)}°C', // Adicionado: argumento obrigatório
+      value: '${_realtime.systemTemperature.toStringAsFixed(1)}°C',
       icon: Icons.thermostat_rounded,
       color: const Color(0xFFFFA726),
       history: _history['temperature'] ?? [],
@@ -113,8 +109,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       id: 'battery',
       title: 'Bateria',
       unit: '%',
-      value:
-          '${_realtime.batteryPercentage}%', // Adicionado: argumento obrigatório
+      value: '${_realtime.batteryPercentage}%',
       icon: Icons.battery_full_rounded,
       color: const Color(0xFF26C6DA),
       history: _history['battery'] ?? [],
@@ -123,8 +118,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       id: 'voltage',
       title: 'Tensão',
       unit: 'V',
-      value:
-          '${_realtime.batteryVoltage.toStringAsFixed(1)} V', // Adicionado: argumento obrigatório
+      value: '${_realtime.batteryVoltage.toStringAsFixed(1)} V',
       icon: Icons.bolt_rounded,
       color: const Color(0xFFFDD835),
       history: _history['voltage'] ?? [],
@@ -161,9 +155,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final cs = Theme.of(
-      context,
-    ).colorScheme; // Variável agora utilizada abaixo no CircularProgressIndicator
+    final cs = Theme.of(context).colorScheme;
 
     return Stack(
       children: [
@@ -179,6 +171,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    // ── Filtro de datas ────────────────────────────────────
                     DateFilter(
                       selected: _filterIndex,
                       onChanged: (i) {
@@ -189,7 +182,40 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         _fetchHistory();
                       },
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+
+                    // ── Botão de Relatórios (logo abaixo do filtro) ────────
+                    SizedBox(
+                      width: double.infinity / 2,
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ReportsScreen(),
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.primaryContainer,
+                          foregroundColor: cs.onPrimaryContainer,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.analytics_outlined, size: 18),
+                        label: const Text(
+                          'RELATÓRIOS',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ──────────────────────────────────────────────────────
+                    const SizedBox(height: 32),
                     const _SectionLabel(text: 'Resumo do período'),
                     const SizedBox(height: 12),
                     SummaryRow(tiles: _summaryTiles),
@@ -201,8 +227,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                             child: Padding(
                               padding: const EdgeInsets.all(40),
                               child: CircularProgressIndicator(
-                                color: cs
-                                    .primary, // Uso da variável cs para resolver o warning
+                                color: cs.primary,
                                 strokeWidth: 2,
                               ),
                             ),
@@ -231,7 +256,6 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 10,
         fontWeight: FontWeight.w900,
         letterSpacing: 1.5,
-        // Corrigido deprecated withOpacity para withValues
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
       ),
     );
