@@ -1,6 +1,6 @@
 import 'package:agromotion/models/battery_state.dart';
 import 'package:agromotion/widgets/glass_container.dart';
-import 'package:agromotion/widgets/statistics/shortcut_icon.dart';
+import 'package:agromotion/widgets/statistics/mapshortcut_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:agromotion/models/metric_data.dart';
 

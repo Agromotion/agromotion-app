@@ -1,8 +1,8 @@
+import 'package:agromotion/screens/statistics_screen.dart';
 import 'package:agromotion/widgets/agro_navbar.dart';
 import 'package:agromotion/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'schedule_screen.dart';
-import 'statistics_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -12,7 +12,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _index = 1; // Começa no Home (centro)
+  int _index = 1;
   late PageController _pageController;
 
   @override

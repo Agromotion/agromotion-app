@@ -1,3 +1,5 @@
+import 'package:agromotion/widgets/agro_appbar.dart';
+import 'package:agromotion/widgets/agro_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -28,145 +30,119 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
-          body: SafeArea(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _notificationService.streamNotifications(),
-              builder: (context, snapshot) {
-                final docs = snapshot.data?.docs ?? [];
-                final totalCount = docs.length;
-                final pendingCount = docs
-                    .where(
-                      (d) =>
-                          (d.data() as Map<String, dynamic>)['isRead'] == false,
-                    )
-                    .length;
+          body: StreamBuilder<QuerySnapshot>(
+            stream: _notificationService.streamNotifications(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? [];
+              final totalCount = docs.length;
+              final pendingCount = docs
+                  .where(
+                    (d) =>
+                        (d.data() as Map<String, dynamic>)['isRead'] == false,
+                  )
+                  .length;
 
-                return CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    _buildHeader(theme, pendingCount, totalCount),
-                    if (snapshot.connectionState == ConnectionState.waiting &&
-                        docs.isEmpty)
-                      const SliverFillRemaining(
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (docs.isEmpty)
-                      const SliverFillRemaining(
-                        child: Center(
-                          child: Text(
-                            "Sem notificações",
-                            style: TextStyle(color: Colors.white54),
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // 1. AppBar com Título e Subtítulo
+                  AgroAppBar(
+                    showBackButton: true,
+                    title: 'Notificações',
+                    subtitle: '$pendingCount Alertas pendentes',
+                  ),
+
+                  // 2. Linha de Ações (Abaixo da AppBar)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.horizontalPadding,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.end, // Alinhado à direita
+                        children: [
+                          _ActionButton(
+                            icon: Icons.done_all_rounded,
+                            label: "Lidas",
+                            onTap: pendingCount > 0
+                                ? () => _notificationService.markAllAsRead()
+                                : null,
                           ),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: context.horizontalPadding,
-                        ),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final doc = docs[index];
-                            final data = doc.data() as Map<String, dynamic>;
-                            final timestamp =
-                                (data['timestamp'] as Timestamp?)?.toDate() ??
-                                DateTime.now();
-                            final bool isRead = data['isRead'] ?? false;
+                          const SizedBox(width: 12),
+                          _ActionButton(
+                            icon: Icons.delete_sweep_outlined,
+                            label: "Limpar",
+                            isError: true,
+                            onTap: totalCount > 0
+                                ? () => _showConfirmClearDialog(theme)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-                            return Dismissible(
-                              key: Key(doc.id),
-                              direction: DismissDirection.endToStart,
-                              onDismissed: (direction) => _notificationService
-                                  .deleteNotification(doc.id),
-                              background: _buildDismissibleBackground(),
-                              child: NotificationTile(
-                                title: data['title'] ?? '',
-                                message: data['message'] ?? '',
-                                time: DateFormat('HH:mm').format(timestamp),
-                                type: _mapType(data['type']),
-                                isRead: isRead,
-                                onTap: () => _notificationService.markAsRead(
-                                  doc.id,
-                                  status: !isRead,
-                                ),
-                              ),
-                            );
-                          }, childCount: docs.length),
+                  // 3. Conteúdo (Loading, Vazio ou Lista)
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      docs.isEmpty)
+                    const SliverFillRemaining(
+                      child: Center(child: AgroLoading()),
+                    )
+                  else if (docs.isEmpty)
+                    const SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          "Sem notificações",
+                          style: TextStyle(color: Colors.white54),
                         ),
                       ),
-                  ],
-                );
-              },
-            ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        context.horizontalPadding,
+                        0,
+                        context.horizontalPadding,
+                        40,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final doc = docs[index];
+                          final data = doc.data() as Map<String, dynamic>;
+                          final timestamp =
+                              (data['timestamp'] as Timestamp?)?.toDate() ??
+                              DateTime.now();
+                          final bool isRead = data['isRead'] ?? false;
+
+                          return Dismissible(
+                            key: Key(doc.id),
+                            direction: DismissDirection.endToStart,
+                            onDismissed: (direction) =>
+                                _notificationService.deleteNotification(doc.id),
+                            background: _buildDismissibleBackground(),
+                            child: NotificationTile(
+                              title: data['title'] ?? '',
+                              message: data['message'] ?? '',
+                              time: DateFormat('HH:mm').format(timestamp),
+                              type: _mapType(data['type']),
+                              isRead: isRead,
+                              onTap: () => _notificationService.markAsRead(
+                                doc.id,
+                                status: !isRead,
+                              ),
+                            ),
+                          );
+                        }, childCount: docs.length),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildHeader(ThemeData theme, int pending, int total) {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(10, 20, 20, 10),
-      sliver: SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              onPressed: () => Navigator.pop(context),
-              color: theme.colorScheme.onSurface,
-              iconSize: 20,
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Notificações",
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        "$pending Alertas pendentes",
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface.withAlpha(128),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.done_all_rounded),
-                        onPressed: pending > 0
-                            ? () => _notificationService.markAllAsRead()
-                            : null,
-                        tooltip: "Marcar todas como lidas",
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_sweep_outlined),
-                        color: theme.colorScheme.error.withAlpha(200),
-                        onPressed: total > 0
-                            ? () => _showConfirmClearDialog(theme)
-                            : null,
-                        tooltip: "Limpar tudo",
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -176,7 +152,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       padding: const EdgeInsets.only(right: 20),
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.red.withAlpha(30),
+        color: Colors.red.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: const Icon(Icons.delete_outline, color: Colors.red),
@@ -190,7 +166,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         backgroundColor: theme.colorScheme.surface,
         title: const Text("Limpar histórico?"),
         content: const Text(
-          "Isto irá apagar permanentemente todas as suas notificações.",
+          "Isto irá apagar permanentemente todas as notificações.",
         ),
         actions: [
           TextButton(
@@ -226,21 +202,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
+// Widget auxiliar para os botões de ação abaixo da AppBar
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool isError;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.isError = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 20, bottom: 12, left: 4),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
-          color: Theme.of(context).colorScheme.primary.withAlpha(180),
+    final color = isError
+        ? Theme.of(context).colorScheme.error
+        : Theme.of(context).colorScheme.primary;
+
+    return Opacity(
+      opacity: onTap == null ? 0.4 : 1.0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color.withValues(alpha: 0.8)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color.withValues(alpha: 0.8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

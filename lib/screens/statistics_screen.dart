@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'package:agromotion/screens/reports_screen.dart';
+import 'package:agromotion/widgets/section_label.dart';
 import 'package:agromotion/widgets/statistics/date_filter.dart';
 import 'package:agromotion/widgets/statistics/metric_grid.dart';
 import 'package:agromotion/widgets/statistics/summary_row.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart'; // Adicionado Provider
 import 'package:agromotion/theme/app_theme.dart';
 import 'package:agromotion/widgets/agro_appbar.dart';
+import 'package:agromotion/widgets/agro_loading.dart';
 import 'package:agromotion/models/metric_data.dart';
 import 'package:agromotion/services/statistics_service.dart';
+import 'package:agromotion/utils/responsive_layout.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -21,20 +25,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   final _service = StatisticsService();
   StreamSubscription? _rtSub;
 
-  // ── Date range ─────────────────────────────────────────────────────────────
-  int _filterIndex = 0;
-  DateTime _endDate = DateTime.now();
-  DateTime get _startDate => _endDate.subtract(
-    Duration(
-      days: _filterIndex == 0
-          ? 1
-          : _filterIndex == 1
-          ? 7
-          : 30,
-    ),
-  );
-
-  // ── State ──────────────────────────────────────────────────────────────────
   bool _isLoading = true;
   TelemetrySnapshot _realtime = const TelemetrySnapshot();
   Map<String, List<FlSpot>> _history = {};
@@ -50,7 +40,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchHistory();
+    // Agendamos o fetch para o próximo frame para garantir que o context/provider estejam prontos
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchHistory());
+
     _rtSub = _service.getRealtimeStatus().listen((snap) {
       if (!snap.exists || !mounted) return;
       final data = snap.data()!;
@@ -69,18 +61,28 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Future<void> _fetchHistory() async {
+    if (!mounted) return;
+
+    // Pegamos o range atual do Provider
+    final filter = context.read<DateFilterProvider>();
+
     setState(() => _isLoading = true);
-    final res = await _service.getHistoryData(_startDate, _endDate);
+
+    final res = await _service.getHistoryData(
+      filter.range.start,
+      filter.range.end,
+    );
+
     if (!mounted) return;
     setState(() {
       _history = Map<String, List<FlSpot>>.from(res['history'] ?? {});
       _summary = {
-        'maxTemp': res['maxTemp'],
-        'minTemp': res['minTemp'],
-        'avgCpu': res['avgCpu'],
-        'maxCpu': res['maxCpu'],
-        'docCount': res['docCount'],
-        'movingPct': res['movingPct'],
+        'maxTemp': res['maxTemp'] ?? '0',
+        'minTemp': res['minTemp'] ?? '0',
+        'avgCpu': res['avgCpu'] ?? '0',
+        'maxCpu': res['maxCpu'] ?? '0',
+        'docCount': res['docCount'] ?? '0',
+        'movingPct': res['movingPct'] ?? '0',
       };
       _isLoading = false;
     });
@@ -98,7 +100,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     ),
     MetricData(
       id: 'temperature',
-      title: 'Temp',
+      title: 'Temperatura',
       unit: '°C',
       value: '${_realtime.systemTemperature.toStringAsFixed(1)}°C',
       icon: Icons.thermostat_rounded,
@@ -154,109 +156,140 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final customColors = theme.extension<AppColorsExtension>()!;
+
+    // Escutamos o provider para reagir a mudanças de data
+    final filterProvider = context.watch<DateFilterProvider>();
 
     return Stack(
       children: [
         Container(
-          decoration: BoxDecoration(gradient: colors.backgroundGradient),
+          decoration: BoxDecoration(gradient: customColors.backgroundGradient),
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
-          body: CustomScrollView(
-            slivers: [
-              const AgroAppBar(),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    // ── Filtro de datas ────────────────────────────────────
-                    DateFilter(
-                      selected: _filterIndex,
-                      onChanged: (i) {
-                        setState(() {
-                          _filterIndex = i;
-                          _endDate = DateTime.now();
-                        });
-                        _fetchHistory();
-                      },
+          body: _isLoading
+              ? CustomScrollView(
+                  slivers: [
+                    const AgroAppBar(title: 'Estatísticas'),
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: AgroLoading()),
                     ),
-                    const SizedBox(height: 12),
+                  ],
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchHistory,
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      const AgroAppBar(title: 'Estatísticas'),
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(
+                          context.horizontalPadding,
+                          5,
+                          context.horizontalPadding,
+                          140,
+                        ),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            // 1. Filtros
+                            const SectionLabel(label: 'Período'),
+                            const SizedBox(height: 8),
+                            DateFilter(
+                              selected: filterProvider.selectedIndex,
+                              onChanged: (index) {
+                                context.read<DateFilterProvider>().setFilter(
+                                  index,
+                                );
+                                _fetchHistory();
+                              },
+                              onCustomPressed: () async {
+                                final picked = await showDateRangePicker(
+                                  context: context,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now(),
+                                  initialDateRange: filterProvider.range,
+                                );
 
-                    // ── Botão de Relatórios (logo abaixo do filtro) ────────
-                    SizedBox(
-                      width: double.infinity / 2,
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ReportsScreen(),
-                          ),
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: cs.primaryContainer,
-                          foregroundColor: cs.onPrimaryContainer,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        icon: const Icon(Icons.analytics_outlined, size: 18),
-                        label: const Text(
-                          'RELATÓRIOS',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                            fontSize: 13,
-                          ),
+                                if (picked != null && context.mounted) {
+                                  context
+                                      .read<DateFilterProvider>()
+                                      .setCustomRange(picked);
+                                  _fetchHistory();
+                                }
+                              },
+                            ),
+
+                            // 2. Relatórios
+                            const SizedBox(height: 16),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _ReportsButton(cs: colorScheme),
+                            ),
+
+                            // 3. Resumo
+                            const SizedBox(height: 16),
+                            const SectionLabel(label: 'Resumo do período'),
+                            const SizedBox(height: 10),
+                            SummaryRow(tiles: _summaryTiles),
+
+                            // 4. Evolução Temporal
+                            const SizedBox(height: 20),
+                            const SectionLabel(label: 'Evolução Temporal'),
+                            const SizedBox(height: 10),
+                            MetricsGrid(
+                              metrics: _metrics,
+                              startTime: filterProvider.range.start,
+                            ),
+                          ]),
                         ),
                       ),
-                    ),
-
-                    // ──────────────────────────────────────────────────────
-                    const SizedBox(height: 32),
-                    const _SectionLabel(text: 'Resumo do período'),
-                    const SizedBox(height: 12),
-                    SummaryRow(tiles: _summaryTiles),
-                    const SizedBox(height: 32),
-                    const _SectionLabel(text: 'Evolução Temporal'),
-                    const SizedBox(height: 12),
-                    _isLoading
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(40),
-                              child: CircularProgressIndicator(
-                                color: cs.primary,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          )
-                        : MetricsGrid(metrics: _metrics, startTime: _startDate),
-                  ]),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
         ),
       ],
     );
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel({required this.text});
+class _ReportsButton extends StatelessWidget {
+  const _ReportsButton({required this.cs});
+  final ColorScheme cs;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.5,
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ReportsScreen()),
+      ),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: cs.primaryContainer.withOpacity(0.3),
+          border: Border.all(color: cs.primary.withOpacity(0.2)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.analytics_outlined, size: 14, color: cs.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Relatórios',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.primary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

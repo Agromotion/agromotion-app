@@ -5,8 +5,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:agromotion/models/metric_data.dart';
 
-/// Threshold (dp) acima do qual os gráficos aparecem directamente no card.
-const double _kLargeScreenBreakpoint = 600;
+/// Ecrãs com largura ≥ este valor mostram gráficos inline nos cards.
+const double _kLargeBreakpoint = 600;
 
 class MetricsGrid extends StatelessWidget {
   const MetricsGrid({
@@ -20,60 +20,33 @@ class MetricsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isLarge = screenWidth >= _kLargeScreenBreakpoint;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLarge = constraints.maxWidth >= _kLargeBreakpoint;
+        final spacing = 12.0;
 
-    if (isLarge) {
-      // Ecrã grande: dois cards por linha com gráfico inline
-      return Column(
-        children: [
-          for (int i = 0; i < metrics.length; i += 2)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _InlineMetricCard(
-                      metric: metrics[i],
-                      startTime: startTime,
-                    ),
-                  ),
-                  if (i + 1 < metrics.length) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _InlineMetricCard(
-                        metric: metrics[i + 1],
-                        startTime: startTime,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      );
-    } else {
-      // Ecrã pequeno: grid 2×N sem gráfico, abre popup ao tocar
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.1,
-        ),
-        itemCount: metrics.length,
-        itemBuilder: (context, i) =>
-            _CompactMetricCard(metric: metrics[i], startTime: startTime),
-      );
-    }
+        // Calculamos a largura de cada item (2 colunas) subtraindo o espaçamento central
+        final itemWidth = (constraints.maxWidth - spacing) / 2;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: metrics.map((metric) {
+            return SizedBox(
+              width: itemWidth,
+              child: isLarge
+                  ? _InlineMetricCard(metric: metric, startTime: startTime)
+                  : _CompactMetricCard(metric: metric, startTime: startTime),
+            );
+          }).toList(),
+        );
+      },
+    );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card grande com gráfico inline (ecrãs ≥ 600 dp)
+// Card com gráfico inline — ecrãs largos
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _InlineMetricCard extends StatelessWidget {
@@ -91,8 +64,9 @@ class _InlineMetricCard extends StatelessWidget {
       borderRadius: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // ── Header ────────────────────────────────────────────────────────
           Row(
             children: [
               Container(
@@ -104,14 +78,17 @@ class _InlineMetricCard extends StatelessWidget {
                 child: Icon(metric.icon, size: 16, color: metric.color),
               ),
               const SizedBox(width: 10),
-              Text(
-                metric.title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  metric.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 metric.value,
                 style: TextStyle(
@@ -122,21 +99,27 @@ class _InlineMetricCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Gráfico inline
-          SizedBox(
-            height: 120,
-            child: metric.history.isEmpty
-                ? Center(
-                    child: Text(
-                      'Sem dados',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurface.withAlpha(60),
+          // Substituído SizedBox por Padding no content
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: SizedBox(
+              height: 110,
+              child: metric.history.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Sem dados para o período',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurface.withAlpha(60),
+                        ),
                       ),
+                    )
+                  : _MiniLineChart(
+                      metric: metric,
+                      startTime: startTime,
+                      cs: cs,
                     ),
-                  )
-                : _MiniLineChart(metric: metric, startTime: startTime, cs: cs),
+            ),
           ),
         ],
       ),
@@ -145,7 +128,7 @@ class _InlineMetricCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card compacto sem gráfico (ecrãs < 600 dp) — abre popup ao tocar
+// Card compacto — telemóvel (toque abre popup)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CompactMetricCard extends StatelessWidget {
@@ -166,8 +149,9 @@ class _CompactMetricCard extends StatelessWidget {
         borderRadius: 18,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
+            // ── Ícone + indicador de expansão ─────────────────────────────
             Row(
               children: [
                 Container(
@@ -181,38 +165,48 @@ class _CompactMetricCard extends StatelessWidget {
                 const Spacer(),
                 Icon(
                   Icons.open_in_full_rounded,
-                  size: 13,
-                  color: cs.onSurface.withAlpha(60),
+                  size: 12,
+                  color: cs.onSurface.withAlpha(50),
                 ),
               ],
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  metric.title,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: cs.onSurface.withAlpha(120),
+
+            // ── Label + valor ──────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    metric.title,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                      color: cs.onSurface.withAlpha(110),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  metric.value,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: metric.color,
-                    height: 1,
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      metric.value,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: metric.color,
+                        height: 1,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            // Mini sparkline apenas para dar contexto visual
+
+            // ── Sparkline ─────────────────────────────────────────────────
             if (metric.history.isNotEmpty)
-              SizedBox(height: 28, child: _SparkLine(metric: metric)),
+              SizedBox(height: 26, child: _SparkLine(metric: metric)),
           ],
         ),
       ),
@@ -221,7 +215,7 @@ class _CompactMetricCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Gráfico de linha completo para cards inline
+// Gráfico de linha completo (inline, ecrãs largos)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MiniLineChart extends StatelessWidget {
@@ -252,7 +246,7 @@ class _MiniLineChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 32,
+              reservedSize: 30,
               getTitlesWidget: (val, _) => Text(
                 val.toStringAsFixed(0),
                 style: TextStyle(
@@ -265,7 +259,7 @@ class _MiniLineChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 22,
+              reservedSize: 20,
               getTitlesWidget: (value, _) {
                 final d = startTime.add(
                   Duration(minutes: (value * 60).toInt()),
@@ -307,7 +301,7 @@ class _MiniLineChart extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sparkline minimalista para cards compactos
+// Sparkline minimalista (cards compactos)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SparkLine extends StatelessWidget {

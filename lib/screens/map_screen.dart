@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/utils/map/motion_calculator.dart';
-import 'package:agromotion/widgets/map/map_glass_button.dart';
+import 'package:agromotion/widgets/glass_button.dart';
 import 'package:agromotion/widgets/map/map_info_panel.dart';
 import 'package:agromotion/widgets/map/map_markers.dart';
 import 'package:flutter/material.dart';
@@ -248,10 +248,9 @@ class _MapScreenState extends State<MapScreen> {
                 Positioned(
                   top: 10,
                   left: 20,
-                  child: MapGlassButton(
+                  child: GlassButton(
                     icon: Icons.chevron_left_rounded,
                     onTap: () => Navigator.pop(context),
-                    isDark: isDark,
                   ),
                 ),
                 Positioned(
@@ -259,22 +258,20 @@ class _MapScreenState extends State<MapScreen> {
                   bottom: 220,
                   child: Column(
                     children: [
-                      MapGlassButton(
+                      GlassButton(
                         icon: Icons.my_location,
                         onTap: () {
                           if (_userLocation != null) {
                             _mapController.move(_userLocation!, 16.0);
                           }
                         },
-                        isDark: isDark,
                       ),
                       const SizedBox(height: 12),
                       if (_robotLocation != null)
-                        MapGlassButton(
+                        GlassButton(
                           icon: Icons.precision_manufacturing,
                           onTap: () =>
                               _mapController.move(_robotLocation!, 16.0),
-                          isDark: isDark,
                         ),
                     ],
                   ),

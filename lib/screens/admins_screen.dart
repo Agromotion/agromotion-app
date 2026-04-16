@@ -1,3 +1,4 @@
+import 'package:agromotion/widgets/agro_loading.dart';
 import 'package:agromotion/widgets/agro_snackbar.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/utils/responsive_layout.dart';
@@ -188,7 +189,7 @@ class _AdminsScreenState extends State<AdminsScreen> {
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.all(20.0),
-                              child: CircularProgressIndicator(),
+                              child: AgroLoading()
                             ),
                           );
                         }

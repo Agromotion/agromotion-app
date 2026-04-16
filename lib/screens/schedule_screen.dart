@@ -43,10 +43,31 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 return const Center(child: AgroLoading());
               }
 
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              final docs = snapshot.data?.docs ?? [];
+              final bool isEmpty = docs.isEmpty;
+
+              final schedulesList =
+                  docs.map((doc) {
+                    return {'id': doc.id, ...doc.data()};
+                  }).toList()..sort(
+                    (a, b) =>
+                        a['time'].toString().compareTo(b['time'].toString()),
+                  );
+
+              final int activeCount = schedulesList
+                  .where((s) => s['active'] == true)
+                  .length;
+
+              final String subtitle = activeCount == 0
+                  ? 'Nenhum agendamento ativo'
+                  : activeCount == 1
+                  ? '1 agendamento ativo'
+                  : '$activeCount agendamentos ativos';
+
+              if (isEmpty) {
                 return CustomScrollView(
                   slivers: [
-                    const AgroAppBar(),
+                    AgroAppBar(title: 'Agendamentos', subtitle: subtitle),
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: _buildEmptyState(colorScheme),
@@ -55,23 +76,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 );
               }
 
-              final schedulesList = snapshot.data!.docs.map((doc) {
-                return {'id': doc.id, ...doc.data()};
-              }).toList();
-
-              // Ordenação local (como backup do orderBy do Firestore)
-              schedulesList.sort(
-                (a, b) => a['time'].toString().compareTo(b['time'].toString()),
-              );
-
               return CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                  const AgroAppBar(),
+                  AgroAppBar(title: 'Agendamentos', subtitle: subtitle),
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
                       context.horizontalPadding,
-                      24,
+                      5,
                       context.horizontalPadding,
                       140,
                     ),

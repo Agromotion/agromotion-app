@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive_layout.dart';
 
 class AgroNavBar extends StatelessWidget {
   final int selectedIndex;
@@ -18,6 +19,8 @@ class AgroNavBar extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final customColors = theme.extension<AppColorsExtension>()!;
 
+    final bool showLabels = context.isTablet;
+
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.only(bottom: 20),
@@ -26,14 +29,22 @@ class AgroNavBar extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: colorScheme.surface.withAlpha(50),
+              color: colorScheme.surface.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(40),
-              border: Border.all(color: colorScheme.outline.withAlpha(10)),
+              border: Border.all(
+                color: colorScheme.outline.withValues(alpha: 0.1),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildPillItem(context, Icons.schedule_outlined, 'Agenda', 0),
+                _buildPillItem(
+                  context,
+                  Icons.schedule_outlined,
+                  'Agenda',
+                  0,
+                  showLabels,
+                ),
                 const SizedBox(width: 12),
                 _buildHomeButton(customColors, colorScheme),
                 const SizedBox(width: 12),
@@ -42,6 +53,7 @@ class AgroNavBar extends StatelessWidget {
                   Icons.bar_chart_rounded,
                   'Estatísticas',
                   2,
+                  showLabels,
                 ),
               ],
             ),
@@ -56,6 +68,7 @@ class AgroNavBar extends StatelessWidget {
     IconData icon,
     String label,
     int index,
+    bool showLabel, // Novo parâmetro
   ) {
     final isSelected = selectedIndex == index;
     final colorScheme = Theme.of(context).colorScheme;
@@ -68,16 +81,19 @@ class AgroNavBar extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: EdgeInsets.symmetric(
+              horizontal: showLabel ? 20 : 15,
+              vertical: 10,
+            ),
             decoration: BoxDecoration(
               color: isSelected
-                  ? colorScheme.primary.withAlpha(15)
-                  : colorScheme.onSurface.withAlpha(5),
+                  ? colorScheme.primary.withValues(alpha: 0.1)
+                  : colorScheme.onSurface.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(25),
               border: Border.all(
                 color: isSelected
                     ? colorScheme.primary
-                    : colorScheme.outline.withAlpha(20),
+                    : colorScheme.outline.withValues(alpha: 0.1),
               ),
             ),
             child: Row(
@@ -87,19 +103,22 @@ class AgroNavBar extends StatelessWidget {
                   size: 20,
                   color: isSelected
                       ? colorScheme.primary
-                      : colorScheme.onSurface.withAlpha(60),
+                      : colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isSelected
-                        ? colorScheme.primary
-                        : colorScheme.onSurface.withAlpha(60),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                // Só mostra o texto e o espaço se showLabel for true
+                if (showLabel) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface.withValues(alpha: 0.4),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -122,21 +141,23 @@ class AgroNavBar extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           gradient: isSelected ? customColors.primaryButtonGradient : null,
-          color: isSelected ? null : colorScheme.onSurface.withAlpha(10),
+          color: isSelected
+              ? null
+              : colorScheme.onSurface.withValues(alpha: 0.1),
           shape: BoxShape.circle,
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: colorScheme.primary.withAlpha(30),
+                    color: colorScheme.primary.withValues(alpha: 0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ]
-              : [], // Remove sombra quando não selecionado
+              : [],
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : colorScheme.outline.withAlpha(20),
+                : colorScheme.outline.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -144,7 +165,7 @@ class AgroNavBar extends StatelessWidget {
           isSelected ? Icons.home : Icons.home_outlined,
           color: isSelected
               ? colorScheme.onPrimary
-              : colorScheme.onSurface.withAlpha(60),
+              : colorScheme.onSurface.withValues(alpha: 0.4),
           size: 30,
         ),
       ),

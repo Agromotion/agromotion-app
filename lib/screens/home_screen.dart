@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/models/metric_data.dart';
 import 'package:agromotion/widgets/home/home_action_button.dart';
-import 'package:agromotion/widgets/home/home_status_indicator.dart';
 import 'package:agromotion/widgets/statistics/realtime_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -64,7 +63,6 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final customColors = Theme.of(context).extension<AppColorsExtension>()!;
-    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: customColors.backgroundBaseColor,
@@ -73,52 +71,27 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(gradient: customColors.backgroundGradient),
         child: Stack(
           children: [
-            // Cabeçalho (Fixo)
-            Positioned(
-              top: 60,
-              left: 24,
-              right: 24,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Agromotion',
-                        style: TextStyle(
-                          fontSize: 32,
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      AgroAppBar.buildActions(context),
-                    ],
-                  ),
-                  HomeStatusIndicator(isOnline: _isOnline),
-                ],
-              ),
-            ),
-
-            // Painel Central
-            // Ajustado bottom para 180 para dar espaço ao botão e à NavBar
-            Positioned.fill(
-              top: 140,
-              bottom: 180,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
+            // ScrollView com SliverAppBar + conteúdo
+            CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                AgroAppBar(
+                  isOnline: _isOnline,
+                  title: 'Agromotion',
+                  showStatus: true,
                 ),
-                child: RealtimePanel(snapshot: _realtime),
-              ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 5, 24, 200),
+                  sliver: SliverToBoxAdapter(
+                    child: RealtimePanel(snapshot: _realtime),
+                  ),
+                ),
+              ],
             ),
 
-            // Botão de Ação Inferior
-            // Aumentado para bottom: 100 para ficar visível acima da NavBar
+            // Botão de Ação fixo acima da NavBar
             Positioned(
-              bottom: 100,
+              bottom: 110,
               left: 24,
               right: 24,
               child: HomeActionButton(

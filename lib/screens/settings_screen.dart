@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:agromotion/widgets/agro_appbar.dart';
 import 'package:agromotion/widgets/settings/section_title.dart';
 import 'package:agromotion/widgets/settings/settings_tile.dart';
 import 'package:agromotion/screens/admins_screen.dart';
@@ -13,7 +14,6 @@ import 'package:agromotion/utils/responsive_layout.dart';
 import 'package:agromotion/services/storage_service.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/widgets/agro_snackbar.dart';
-import 'package:agromotion/widgets/settings/settings_header.dart';
 import 'package:agromotion/widgets/settings/settings_footer.dart';
 import 'package:agromotion/widgets/settings/logout_button.dart';
 
@@ -121,7 +121,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                const SettingsHeader(),
+                const AgroAppBar(
+                  showBackButton: true,
+                  title: 'Configurações',
+                  subtitle: "Configure a sua plataforma Agromotion",
+                  showSettings: false,
+                  showNotifications: false,
+                ),
 
                 SliverPadding(
                   padding: EdgeInsets.symmetric(

@@ -6,6 +6,7 @@ import 'package:agromotion/firebase_options.dart';
 import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/services/notification_service.dart';
 import 'package:agromotion/theme/theme_provider.dart';
+import 'package:agromotion/widgets/statistics/date_filter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -19,10 +20,9 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   MediaKit.ensureInitialized();
   FirebaseAuth.instance.setLanguageCode('pt-PT');
-  
+
   final notificationService = NotificationService();
   unawaited(notificationService.setupPushNotifications());
-
   unawaited(AuthService().initGoogleSignIn());
 
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
@@ -30,8 +30,11 @@ void main() async {
   }
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => DateFilterProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
       child: const AgromotionApp(),
     ),
   );
