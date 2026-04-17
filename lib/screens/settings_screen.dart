@@ -16,6 +16,7 @@ import 'package:agromotion/services/auth_service.dart';
 import 'package:agromotion/widgets/agro_snackbar.dart';
 import 'package:agromotion/widgets/settings/settings_footer.dart';
 import 'package:agromotion/widgets/settings/logout_button.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -158,9 +159,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SectionTitle(title: 'Utilizadores'),
                         _buildUsersTile(),
 
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 32),
+
+                        const SectionTitle(title: 'Mais Informações'),
+                        _buildWebsiteTile(),
+
+                        const SizedBox(height: 32),
                         LogoutButton(onPressed: _handleLogout),
+                      ] else ...[
+                        const SectionTitle(title: 'Mais Informações'),
+                        _buildWebsiteTile(),
                       ],
+
                       SettingsFooter(
                         appVersion: _appVersion,
                         buildNumber: _buildNumber,
@@ -202,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       icon: kIsWeb ? Icons.download_rounded : Icons.folder_special_outlined,
       title: 'Local das Capturas',
       subtitle: Text(
-        kIsWeb ? 'Gerido pelo navegador' : _currentStoragePath,
+        kIsWeb ? 'Gerido pelo browser' : _currentStoragePath,
         style: const TextStyle(fontSize: 12),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -220,10 +230,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return SettingsTile(
       icon: Icons.people,
       title: 'Gestão de Utilizadores',
-      trailing: IconButton(
-        icon: const Icon(Icons.arrow_forward, size: 20),
-        onPressed: _handleUserManagement,
-      ),
+      onPressed: _handleUserManagement,
+    );
+  }
+
+  Widget _buildWebsiteTile() {
+    return SettingsTile(
+      icon: Icons.public,
+      title: 'Website Informativo',
+      onPressed: () async {
+        if (!await launchUrl(Uri.parse('https://agromotion.github.io'))) {
+          throw Exception('Could not launch agromotion.github.io');
+        }
+      },
     );
   }
 

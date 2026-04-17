@@ -1,8 +1,6 @@
-/// Serviço para gerir autenticação de utilizadores.
-/// Inclui lógica para login via Google/Email e Password e verificação de autorização.
 library;
 
-import 'package:agromotion/config/app_config.dart';
+import 'package:agromotion/firebase_options.dart'; // Ficheiro gerado pelo flutterfire configure
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,15 +13,12 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  String get _googleClientId => AppConfig.googleClientId;
-  String get _googleClientSecret => AppConfig.googleClientSecret;
   bool _isInitialized = false;
   final ValueNotifier<bool> isWhitelisting = ValueNotifier<bool>(false);
 
+  // O segredo desaparece. O ClientID é resolvido automaticamente pela plataforma
   late final GoogleSignIn _googleSignIn = GoogleSignIn(
     params: GoogleSignInParams(
-      clientId: _googleClientId,
-      clientSecret: kIsWeb ? null : _googleClientSecret,
       redirectPort: 5555,
       scopes: ['openid', 'profile', 'email'],
     ),
@@ -36,20 +31,23 @@ class AuthService {
   bool _isVerifying = false;
   bool get isVerifying => _isVerifying;
 
+  /// Verifica se o email está na whitelist do Firestore
   Future<bool> isUserAuthorized(String? email) async {
     if (email == null || email.isEmpty) return false;
-    _isVerifying = true; // Inicia verificação
+    _isVerifying = true;
 
     final cleanEmail = email.trim().toLowerCase();
     try {
-      final query = await FirebaseFirestore.instance
+      // DocumentId deve ser o email em lowercase
+      final doc = await FirebaseFirestore.instance
           .collection('authorized_emails')
-          .where(FieldPath.documentId, isEqualTo: cleanEmail)
+          .doc(cleanEmail)
           .get(const GetOptions(source: Source.serverAndCache));
 
       _isVerifying = false;
-      return query.docs.isNotEmpty;
+      return doc.exists;
     } catch (e) {
+      AppLogger.error("Erro ao verificar autorização", e);
       _isVerifying = false;
       return false;
     }
@@ -61,17 +59,7 @@ class AuthService {
     try {
       _googleSignIn.authenticationState.listen((credentials) async {
         if (credentials != null && _auth.currentUser == null) {
-          try {
-            GoogleAuthProvider.credential(
-              accessToken: credentials.accessToken,
-              idToken: credentials.idToken,
-            );
-          } catch (e) {
-            AppLogger.error(
-              "Erro no processamento de credenciais automáticas",
-              e,
-            );
-          }
+          await _signInToFirebaseWithGoogle(credentials);
         }
       });
 
@@ -82,9 +70,24 @@ class AuthService {
     }
   }
 
+  /// Centraliza a lógica de conversão de credenciais Google -> Firebase
+  Future<void> _signInToFirebaseWithGoogle(
+    GoogleSignInCredentials credentials,
+  ) async {
+    try {
+      final credential = GoogleAuthProvider.credential(
+        accessToken: credentials.accessToken,
+        idToken: credentials.idToken,
+      );
+      await _auth.signInWithCredential(credential);
+    } catch (e) {
+      AppLogger.error("Erro na troca de credenciais Firebase", e);
+    }
+  }
+
   Future<String?> login(String email, String password) async {
     try {
-      isWhitelisting.value = true; // Bloqueia o Wrapper
+      isWhitelisting.value = true;
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
@@ -108,7 +111,9 @@ class AuthService {
 
   Future<String?> signInWithGoogle() async {
     try {
+      // No Web, o package exige o uso do botão nativo para renderizar o IFrame
       if (kIsWeb) return "Utilize o botão oficial";
+
       isWhitelisting.value = true;
 
       final credentials = await _googleSignIn.signIn();

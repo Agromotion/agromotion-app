@@ -75,7 +75,6 @@ class _LoginBackgroundState extends State<LoginBackground> {
 
   @override
   void dispose() {
-    // Otimização: parar o player antes de destruir
     _player?.stop();
     _player?.dispose();
     super.dispose();
