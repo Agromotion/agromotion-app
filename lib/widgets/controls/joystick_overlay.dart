@@ -29,7 +29,6 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Cores Otimizadas: Fundo muito mais subtil (0.05 a 0.15 de opacidade)
     final Color baseColor = colorScheme.onSurface.withAlpha(
       widget.isFullScreen ? 8 : 15,
     );
@@ -44,29 +43,30 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
           child: Container(
             width: constraints.maxWidth,
             padding: EdgeInsets.symmetric(
-              // Eixo X: Joysticks mais perto do centro no modo FullScreen
               horizontal: widget.isFullScreen ? 140 : 20,
               vertical: 5,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Joystick da Esquerda
                 _buildJoystick(
                   colorScheme,
                   baseColor,
                   stickColor,
                   arrowActiveColor,
                   arrowInactiveColor,
-                  isRotation: widget.swapJoysticks,
+                  isLeftPosition: true,
                 ),
                 const Spacer(),
+                // Joystick da Direita
                 _buildJoystick(
                   colorScheme,
                   baseColor,
                   stickColor,
                   arrowActiveColor,
                   arrowInactiveColor,
-                  isRotation: !widget.swapJoysticks,
+                  isLeftPosition: false,
                 ),
               ],
             ),
@@ -82,13 +82,17 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
     Color stickColor,
     Color activeA,
     Color inactiveA, {
-    required bool isRotation,
+    required bool isLeftPosition,
   }) {
-    bool isLeftStick =
-        (!widget.swapJoysticks && !isRotation) ||
-        (widget.swapJoysticks && isRotation);
-    double x = isLeftStick ? leftX : rightX;
-    double y = isLeftStick ? leftY : rightY;
+    // Define se este joystick específico (na posição atual) deve ser Vertical ou Horizontal
+    // Se swapJoysticks for false: Esquerda = Vertical, Direita = Horizontal
+    // Se swapJoysticks for true:  Esquerda = Horizontal, Direita = Vertical
+    bool isVerticalMode = isLeftPosition
+        ? !widget.swapJoysticks
+        : widget.swapJoysticks;
+
+    double x = isLeftPosition ? leftX : rightX;
+    double y = isLeftPosition ? leftY : rightY;
 
     return SizedBox(
       width: 130,
@@ -96,21 +100,8 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          _buildArrow(
-            Icons.arrow_left_rounded,
-            Alignment.centerLeft,
-            x < -0.3,
-            activeA,
-            inactiveA,
-          ),
-          _buildArrow(
-            Icons.arrow_right_rounded,
-            Alignment.centerRight,
-            x > 0.3,
-            activeA,
-            inactiveA,
-          ),
-          if (!isRotation) ...[
+          // Setas Verticais (Cima/Baixo)
+          if (isVerticalMode) ...[
             _buildArrow(
               Icons.arrow_drop_up_rounded,
               Alignment.topCenter,
@@ -126,11 +117,30 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
               inactiveA,
             ),
           ],
+          // Setas Horizontais (Esquerda/Direita)
+          if (!isVerticalMode) ...[
+            _buildArrow(
+              Icons.arrow_left_rounded,
+              Alignment.centerLeft,
+              x < -0.3,
+              activeA,
+              inactiveA,
+            ),
+            _buildArrow(
+              Icons.arrow_right_rounded,
+              Alignment.centerRight,
+              x > 0.3,
+              activeA,
+              inactiveA,
+            ),
+          ],
           Joystick(
-            mode: isRotation ? JoystickMode.horizontal : JoystickMode.all,
+            mode: isVerticalMode
+                ? JoystickMode.vertical
+                : JoystickMode.horizontal,
             listener: (details) {
               setState(() {
-                if (isLeftStick) {
+                if (isLeftPosition) {
                   leftX = details.x;
                   leftY = details.y;
                   widget.onMoveLeft(details.x, details.y);
@@ -167,7 +177,7 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
       alignment: alignment,
       child: Icon(
         icon,
-        size: 30,
+        size: 35, // Aumentado ligeiramente para melhor visibilidade
         color: isActive ? activeColor : inactiveColor,
       ),
     );
