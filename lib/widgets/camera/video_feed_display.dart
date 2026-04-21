@@ -3,8 +3,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 class VideoFeedDisplay extends StatelessWidget {
   final RTCVideoRenderer renderer;
-  final bool isFullScreen; // NOVO: Para matar as bordas e o ratio
-
+  final bool isFullScreen;
   const VideoFeedDisplay({
     super.key,
     required this.renderer,

@@ -21,7 +21,7 @@ class StatisticsService {
       final query = await _db
           .collection('robots')
           .doc(robotId)
-          .collection('telemetry-history')
+          .collection('telemetry_history')
           .where('timestamp', isGreaterThanOrEqualTo: start)
           .where('timestamp', isLessThanOrEqualTo: end)
           .orderBy('timestamp')
@@ -109,7 +109,7 @@ class StatisticsService {
     final query = await _db
         .collection('robots')
         .doc(robotId)
-        .collection('telemetry-history')
+        .collection('telemetry_history')
         .where('timestamp', isGreaterThanOrEqualTo: start)
         .where('timestamp', isLessThanOrEqualTo: end)
         .orderBy('timestamp')

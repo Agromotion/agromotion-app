@@ -43,16 +43,14 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: AgroNavBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) {
-          setState(() {
-            _index = i;
-            _pageController.animateToPage(
-              i,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          });
-        },
+       onDestinationSelected: (i) {
+      _index = i;
+      _pageController.animateToPage(
+        i,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    },
       ),
     );
   }

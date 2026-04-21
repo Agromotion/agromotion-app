@@ -23,15 +23,25 @@ class WebRTCService {
 
   WebRTCService({required this.remoteRenderer});
 
+  Set<String> _processedCandidates = {};
+
   Future<void> connect() async {
     if (_isDisposed) return;
 
     // 1. Peer Connection Configuration
-    // STUN servers allow the App and Pi to find each other behind any WiFi/NAT
     Map<String, dynamic> configuration = {
       "iceServers": [
         {"urls": "stun:stun.l.google.com:19302"},
-        {"urls": "stun:stun1.l.google.com:19302"},
+        {
+          "urls": "turn:openrelay.metered.ca:80",
+          "username": "openrelayproject",
+          "password": "openrelayproject"
+        },
+        {
+          "urls": "turn:openrelay.metered.ca:443",
+          "username": "openrelayproject",
+          "password": "openrelayproject"
+        },
       ],
       "sdpSemantics": "unified-plan",
     };
@@ -54,37 +64,59 @@ class WebRTCService {
     };
 
     // 4. Handle ICE Candidates
-    // Whenever the App finds a "path" to the internet, it sends it to the Robot via Firestore
     _peerConnection!.onIceCandidate = (candidate) {
-      _db.collection('robots').doc(robotId).update({
-        'app_candidates': FieldValue.arrayUnion([
-          {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
-          },
-        ]),
-      });
+      // Só envia se o candidato for válido para evitar crash no Python
+      if (candidate.candidate != null) {
+        _db.collection('robots').doc(robotId).update({
+          'app_candidates': FieldValue.arrayUnion([
+            {
+              'candidate': candidate.candidate,
+              'sdpMid': candidate.sdpMid ?? "0",
+              'sdpMLineIndex': candidate.sdpMLineIndex ?? 0,
+            },
+          ]),
+        });
+      }
     };
 
     // 5. Create WebRTC Offer
     RTCSessionDescription offer = await _peerConnection!.createOffer({
       'offerToReceiveVideo': 1,
       'offerToReceiveAudio': 0,
+      'mandatory': {
+        'OfferToReceiveVideo': true,
+      }
     });
+
     await _peerConnection!.setLocalDescription(offer);
 
-    // 6. Push Offer to Firestore to wake up the Robot
-    await _db.collection('robots').doc(robotId).set({
-      'webrtc_session': {
-        'offer': {'sdp': offer.sdp, 'type': offer.type},
-        'answer': null,
-      },
-      'app_candidates': [],
-      'robot_candidates': [],
-      'last_handshake': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+   // 6. Push Offer to Firestore - TESTE DE DIAGNÓSTICO
+    print("DEBUG: A tentar conectar ao Robô ID: '$robotId'");
+    
+    try {
+      final docRef = _db.collection('robots').doc(robotId);
+      
+      // Teste de escrita simples antes da offer
+      await docRef.set({
+        'last_app_connect_attempt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      print("DEBUG: Teste de escrita simples OK!");
 
+      await docRef.update({
+        'webrtc_session': {
+          'offer': {'sdp': offer.sdp, 'type': offer.type},
+          'answer': null,
+        },
+        'app_candidates': [], 
+        'robot_candidates': [],
+        'last_handshake': FieldValue.serverTimestamp(),
+      });
+      print("DEBUG: Offer escrita com sucesso no Firestore!");
+    } catch (e, stack) {
+      print("DEBUG ERROR: Falha catastrófica ao escrever no Firebase: $e");
+      print("STACKTRACE: $stack");
+    }
+    
     // 7. Listen for the Robot's Answer and ICE Candidates
     _signalingSubscription = _db
         .collection('robots')
@@ -108,17 +140,21 @@ class WebRTCService {
             debugPrint("WebRTC: Answer received from Robot.");
           }
 
-          // Handle ICE Candidates from Robot (Hole Punching)
           final List? robotCandidates = data['robot_candidates'];
           if (robotCandidates != null && robotCandidates.isNotEmpty) {
             for (var c in robotCandidates) {
-              _peerConnection!.addCandidate(
-                RTCIceCandidate(
-                  c['candidate'],
-                  c['sdpMid'],
-                  c['sdpMLineIndex'],
-                ),
-              );
+              String candidateStr = c['candidate'];
+              if (!_processedCandidates.contains(candidateStr)) {
+                await _peerConnection!.addCandidate(
+                  RTCIceCandidate(
+                    candidateStr,
+                    c['sdpMid'],
+                    c['sdpMLineIndex'],
+                  ),
+                );
+                _processedCandidates.add(candidateStr);
+                debugPrint("WebRTC: Added Candidate from Robot");
+              }
             }
           }
         });

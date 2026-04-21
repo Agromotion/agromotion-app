@@ -18,7 +18,9 @@ import 'package:provider/provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  MediaKit.ensureInitialized();
+  if (!kIsWeb) {
+    MediaKit.ensureInitialized();
+  }
   FirebaseAuth.instance.setLanguageCode('pt-PT');
 
   final notificationService = NotificationService();
