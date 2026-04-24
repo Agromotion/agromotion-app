@@ -69,15 +69,17 @@ class TelemetrySnapshot {
   });
 
   factory TelemetrySnapshot.fromMap(Map<String, dynamic> m) {
+    // Extrai o mapa de telemetria
     final data = m.containsKey('telemetry')
         ? m['telemetry'] as Map<String, dynamic>
         : m;
 
-    // viewer_queue está na raiz do documento, não dentro de telemetry
-    final viewerQueue = m['viewer_queue'];
-    final viewerCount = viewerQueue is List ? viewerQueue.length : 0;
-
+    // Extrai o mapa de controle
     final controlData = m['control'] as Map<String, dynamic>? ?? {};
+
+    // Agora busca o viewer_queue dentro de controlData
+    final viewerQueue = controlData['viewer_queue'];
+    final viewerCount = viewerQueue is List ? viewerQueue.length : 0;
 
     return TelemetrySnapshot(
       batteryPercentage: _toInt(data['battery_percentage']),
