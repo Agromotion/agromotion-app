@@ -9,8 +9,6 @@ import 'package:agromotion/services/storage_service.dart';
 
 class MediaService {
   final StorageService _storage = StorageService();
-  bool isRecording = false;
-
   Future<void> captureScreenshot(MediaStream? stream) async {
     if (stream == null || stream.getVideoTracks().isEmpty) return;
     final frame = await stream.getVideoTracks()[0].captureFrame();

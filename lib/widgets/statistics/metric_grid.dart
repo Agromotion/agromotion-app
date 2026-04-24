@@ -59,69 +59,73 @@ class _InlineMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return GlassContainer(
-      padding: const EdgeInsets.all(16),
-      borderRadius: 20,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Header ────────────────────────────────────────────────────────
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: metric.color.withAlpha(30),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(metric.icon, size: 16, color: metric.color),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  metric.title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+    return GestureDetector(
+      onTap: () =>
+          ChartPopup.show(context, metric: metric, startTime: startTime),
+      child: GlassContainer(
+        padding: const EdgeInsets.all(16),
+        borderRadius: 20,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Header ────────────────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: metric.color.withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  child: Icon(metric.icon, size: 16, color: metric.color),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                metric.value,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: metric.color,
-                ),
-              ),
-            ],
-          ),
-          // Substituído SizedBox por Padding no content
-          Padding(
-            padding: const EdgeInsets.only(top: 14),
-            child: SizedBox(
-              height: 110,
-              child: metric.history.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Sem dados para o período',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withAlpha(60),
-                        ),
-                      ),
-                    )
-                  : _MiniLineChart(
-                      metric: metric,
-                      startTime: startTime,
-                      cs: cs,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    metric.title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  metric.value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: metric.color,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+            // Substituído SizedBox por Padding no content
+            Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: SizedBox(
+                height: 110,
+                child: metric.history.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Sem dados para o período',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withAlpha(60),
+                          ),
+                        ),
+                      )
+                    : _MiniLineChart(
+                        metric: metric,
+                        startTime: startTime,
+                        cs: cs,
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

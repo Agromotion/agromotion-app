@@ -50,6 +50,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     showBackButton: true,
                     title: 'Notificações',
                     subtitle: '$pendingCount Alertas pendentes',
+                    showNotifications: false,
+                    showSettings: false,
                   ),
 
                   // 2. Linha de Ações (Abaixo da AppBar)

@@ -12,7 +12,6 @@ class WebRTCService {
   final RTCVideoRenderer remoteRenderer;
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  // Instância do AuthService para aceder ao user de forma correta
   final AuthService _authService = AuthService();
 
   String get robotId => AppConfig.robotId;
@@ -22,6 +21,7 @@ class WebRTCService {
   bool _isConnecting = false;
   bool _offerPublished = false;
   bool _remoteDescriptionSet = false;
+  MediaStream? get remoteStream => remoteRenderer.srcObject;
 
   bool get isConnected =>
       _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
@@ -30,6 +30,10 @@ class WebRTCService {
   WebRTCService({required this.remoteRenderer});
 
   final Set<String> _processedCandidates = {};
+
+  Timer? _statsTimer;
+  final _statsController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get statsStream => _statsController.stream;
 
   Future<void> connect() async {
     if (_isDisposed || _isConnecting) return;
@@ -94,23 +98,22 @@ class WebRTCService {
       _peerConnection!.onConnectionState = (state) {
         debugPrint("WebRTC Connection State: $state");
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          // CHAMADA DA FUNÇÃO: Quando conecta, pede controlo ou entra na fila
+          // Quando conecta, pede controlo ou entra na fila
           _requestControl();
+          _startStatsCollection();
         }
       };
 
-      final offer = await _peerConnection!.createOffer({
-        'mandatory': {
-          'OfferToReceiveVideo': true,
-          'OfferToReceiveAudio': false,
-        },
-        'optional': [],
-      });
+      await _peerConnection!.addTransceiver(
+        kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+        init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
+      );
+
+      final offer = await _peerConnection!.createOffer({});
       await _peerConnection!.setLocalDescription(offer);
 
       debugPrint("DEBUG: A iniciar handshake com Robô ID: '$robotId'");
 
-      // FIX 1: Acesso correto ao currentUser (removido erro static access)
       final userEmail = _authService.currentUser?.email;
 
       await _db.collection('robots').doc(robotId).update({
@@ -184,7 +187,7 @@ class WebRTCService {
     }
   }
 
-  // FIX 2: Implementada lógica de Transação para a fila FIFO
+  // Implementada lógica de Transação para a fila FIFO
   Future<void> _requestControl() async {
     final userEmail = _authService.currentUser?.email;
     if (userEmail == null) return;
@@ -196,26 +199,13 @@ class WebRTCService {
         DocumentSnapshot snapshot = await transaction.get(docRef);
         if (!snapshot.exists) return;
 
-        Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
-        // Aceder corretamente ao mapa aninhado 'control'
-        Map<String, dynamic> control = data['control'] ?? {};
-        List queue = control['viewer_queue'] ?? [];
-
-        if (!queue.contains(userEmail)) {
-          transaction.update(docRef, {
-            'control.viewer_queue': FieldValue.arrayUnion([userEmail]),
-            'status.video_client_count': FieldValue.increment(1),
-          });
-          queue.add(userEmail);
-        }
-
-        if (queue.isNotEmpty && queue.first == userEmail) {
-          transaction.update(docRef, {
-            'control.active_controller_email': userEmail,
-          });
-        }
+        // Apenas adicionamos à fila. NÃO alteramos o active_controller_email na App.
+        transaction.update(docRef, {
+          'control.viewer_queue': FieldValue.arrayUnion([userEmail]),
+          'status.video_client_count': FieldValue.increment(1),
+        });
       });
-      debugPrint("WebRTC: Pedido de controlo/fila processado.");
+      debugPrint("WebRTC: Adicionado à fila de espera.");
     } catch (e) {
       debugPrint("WebRTC Error Transaction: $e");
     }
@@ -235,6 +225,68 @@ class WebRTCService {
     }
   }
 
+  void _startStatsCollection() {
+    _statsTimer?.cancel();
+    _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_isDisposed || _peerConnection == null) return;
+      try {
+        final stats = await _peerConnection!.getStats();
+        double? frameRate;
+        int? frameWidth;
+        int? frameHeight;
+        double? jitterMs;
+        double? packetsLostPercent;
+
+        for (final report in stats) {
+          // Inbound RTP — vídeo recebido
+          if (report.type == 'inbound-rtp' &&
+              report.values['kind'] == 'video') {
+            final framesDecoded = report.values['framesDecoded'];
+            final fps = report.values['framesPerSecond'];
+            if (fps != null) frameRate = (fps as num).toDouble();
+
+            final width = report.values['frameWidth'];
+            final height = report.values['frameHeight'];
+            if (width != null) frameWidth = (width as num).toInt();
+            if (height != null) frameHeight = (height as num).toInt();
+
+            final jitter = report.values['jitter'];
+            if (jitter != null) jitterMs = (jitter as num).toDouble() * 1000;
+
+            final lost = report.values['packetsLost'];
+            final received = report.values['packetsReceived'];
+            if (lost != null && received != null) {
+              final total =
+                  (received as num).toDouble() + (lost as num).toDouble();
+              packetsLostPercent = total > 0
+                  ? ((lost as num) / total * 100)
+                  : 0.0;
+            }
+          }
+        }
+
+        if (!_statsController.isClosed) {
+          _statsController.add({
+            'frameRate': frameRate != null
+                ? '${frameRate.toStringAsFixed(1)} fps'
+                : '---',
+            'resolution': (frameWidth != null && frameHeight != null)
+                ? '${frameWidth}x${frameHeight}'
+                : '---',
+            'latency': jitterMs != null
+                ? '${jitterMs.toStringAsFixed(0)} ms'
+                : '---',
+            'packetLoss': packetsLostPercent != null
+                ? '${packetsLostPercent.toStringAsFixed(1)}%'
+                : '---',
+          });
+        }
+      } catch (e) {
+        debugPrint("WebRTC Stats error: $e");
+      }
+    });
+  }
+
   Future<void> _cleanup() async {
     _signalingSubscription?.cancel();
     _signalingSubscription = null;
@@ -246,6 +298,9 @@ class WebRTCService {
     }
     remoteRenderer.srcObject = null;
     _processedCandidates.clear();
+    _statsTimer?.cancel();
+    _statsTimer = null;
+    if (!_statsController.isClosed) _statsController.close();
   }
 
   void dispose() {
@@ -257,5 +312,8 @@ class WebRTCService {
     _peerConnection?.dispose();
     remoteRenderer.srcObject = null;
     _processedCandidates.clear();
+    _statsTimer?.cancel();
+    _statsTimer = null;
+    if (!_statsController.isClosed) _statsController.close();
   }
 }

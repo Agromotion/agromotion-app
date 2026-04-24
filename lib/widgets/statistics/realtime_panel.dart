@@ -164,7 +164,6 @@ class _GpsStatusCard extends StatelessWidget {
                 title: 'Localização',
               ),
               const Spacer(),
-              // BOTÃO DINÂMICO DE MAPA
               MapShortcutButton(gpsColor: gpsColor),
             ],
           ),

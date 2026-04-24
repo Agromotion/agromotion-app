@@ -4,8 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:agromotion/models/metric_data.dart';
 
-/// Full-screen bottom sheet that shows a large chart for [metric].
-class ChartPopup extends StatelessWidget {
+class ChartPopup extends StatefulWidget {
   const ChartPopup({super.key, required this.metric, required this.startTime});
 
   final MetricData metric;
@@ -22,6 +21,31 @@ class ChartPopup extends StatelessWidget {
       isScrollControlled: true,
       builder: (_) => ChartPopup(metric: metric, startTime: startTime),
     );
+  }
+
+  @override
+  State<ChartPopup> createState() => _ChartPopupState();
+}
+
+class _ChartPopupState extends State<ChartPopup> {
+  late double _minX;
+  late double _maxX;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.metric.history.isNotEmpty) {
+      _minX = widget.metric.history
+          .map((e) => e.x)
+          .reduce((a, b) => a < b ? a : b);
+      _maxX = widget.metric.history
+          .map((e) => e.x)
+          .reduce((a, b) => a > b ? a : b);
+      if (_maxX <= _minX) _maxX = _minX + 0.1;
+    } else {
+      _minX = 0;
+      _maxX = 1;
+    }
   }
 
   @override
@@ -55,17 +79,21 @@ class ChartPopup extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: metric.color.withAlpha(30),
+                  color: widget.metric.color.withAlpha(30),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(metric.icon, color: metric.color, size: 18),
+                child: Icon(
+                  widget.metric.icon,
+                  color: widget.metric.color,
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    metric.title,
+                    widget.metric.title,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -83,11 +111,11 @@ class ChartPopup extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                metric.value,
+                widget.metric.value,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: metric.color,
+                  color: widget.metric.color,
                 ),
               ),
             ],
@@ -98,7 +126,7 @@ class ChartPopup extends StatelessWidget {
           // Chart
           SizedBox(
             height: 260,
-            child: metric.history.isEmpty
+            child: widget.metric.history.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -119,13 +147,37 @@ class ChartPopup extends StatelessWidget {
                       ],
                     ),
                   )
-                : _buildChart(cs),
+                : LineChart(_lineData(cs)),
           ),
 
-          const SizedBox(height: 24),
+          // Hint zoom/pan
+          if (widget.metric.history.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.pinch_rounded,
+                    size: 12,
+                    color: cs.onSurface.withAlpha(50),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Pinch para zoom · Arrasta para navegar',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: cs.onSurface.withAlpha(50),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 20),
 
           // Stats row (min / avg / max)
-          if (metric.history.isNotEmpty) _buildStatsRow(cs),
+          if (widget.metric.history.isNotEmpty) _buildStatsRow(cs),
 
           const SizedBox(height: 20),
 
@@ -155,24 +207,13 @@ class ChartPopup extends StatelessWidget {
     );
   }
 
-  Widget _buildChart(ColorScheme cs) {
-    switch (metric.chartType) {
-      case ChartType.bar:
-        return BarChart(_barData(cs));
-      case ChartType.pie:
-        return PieChart(_pieData(cs));
-      case ChartType.line:
-        return LineChart(_lineData(cs));
-    }
-  }
-
   Widget _buildStatsRow(ColorScheme cs) {
-    final values = metric.history.map((s) => s.y).toList();
+    final values = widget.metric.history.map((s) => s.y).toList();
     final min = values.reduce((a, b) => a < b ? a : b);
     final max = values.reduce((a, b) => a > b ? a : b);
     final avg = values.reduce((a, b) => a + b) / values.length;
 
-    String fmt(double v) => '${v.toStringAsFixed(1)} ${metric.unit}';
+    String fmt(double v) => '${v.toStringAsFixed(1)} ${widget.metric.unit}';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -181,17 +222,37 @@ class ChartPopup extends StatelessWidget {
         _Divider(),
         _MiniStat(label: 'MÉDIA', value: fmt(avg), color: cs.onSurface),
         _Divider(),
-        _MiniStat(label: 'MÁX', value: fmt(max), color: metric.color),
+        _MiniStat(label: 'MÁX', value: fmt(max), color: widget.metric.color),
       ],
     );
   }
 
   LineChartData _lineData(ColorScheme cs) {
     return LineChartData(
+      minX: _minX,
+      maxX: _maxX,
+      clipData: const FlClipData.all(),
+      lineTouchData: LineTouchData(
+        touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (spot) => cs.surfaceContainerHigh,
+          getTooltipItems: (spots) => spots.map((s) {
+            return LineTooltipItem(
+              '${s.y.toStringAsFixed(1)} ${widget.metric.unit}',
+              TextStyle(
+                color: widget.metric.color,
+                fontWeight: FontWeight.bold,
+              ),
+            );
+          }).toList(),
+        ),
+      ),
       gridData: FlGridData(
         show: true,
-        drawVerticalLine: false,
+        drawVerticalLine: true,
+        horizontalInterval: 20,
         getDrawingHorizontalLine: (_) =>
+            FlLine(color: cs.onSurface.withAlpha(12), strokeWidth: 1),
+        getDrawingVerticalLine: (_) =>
             FlLine(color: cs.onSurface.withAlpha(12), strokeWidth: 1),
       ),
       borderData: FlBorderData(show: false),
@@ -201,7 +262,7 @@ class ChartPopup extends StatelessWidget {
         leftTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 38,
+            reservedSize: 40,
             getTitlesWidget: (val, _) => Text(
               val.toStringAsFixed(0),
               style: TextStyle(fontSize: 9, color: cs.onSurface.withAlpha(80)),
@@ -211,11 +272,14 @@ class ChartPopup extends StatelessWidget {
         bottomTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 28,
+            reservedSize: 32,
+            interval: (_maxX - _minX) / 4 > 0 ? (_maxX - _minX) / 4 : 1,
             getTitlesWidget: (value, _) {
-              final d = startTime.add(Duration(minutes: (value * 60).toInt()));
+              final d = widget.startTime.add(
+                Duration(milliseconds: (value * 3600000).toInt()),
+              );
               return Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   DateFormat('HH:mm').format(d),
                   style: TextStyle(
@@ -230,69 +294,24 @@ class ChartPopup extends StatelessWidget {
       ),
       lineBarsData: [
         LineChartBarData(
-          spots: metric.history,
+          spots: widget.metric.history,
           isCurved: true,
-          color: metric.color,
-          barWidth: 3,
+          curveSmoothness: 0.35,
+          color: widget.metric.color,
+          barWidth: 4,
+          isStrokeCapRound: true,
           dotData: const FlDotData(show: false),
           belowBarData: BarAreaData(
             show: true,
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [metric.color.withAlpha(60), metric.color.withAlpha(0)],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  BarChartData _barData(ColorScheme cs) {
-    return BarChartData(
-      gridData: const FlGridData(show: false),
-      titlesData: const FlTitlesData(show: false),
-      borderData: FlBorderData(show: false),
-      barGroups: metric.history
-          .map(
-            (s) => BarChartGroupData(
-              x: s.x.toInt(),
-              barRods: [
-                BarChartRodData(
-                  toY: s.y,
-                  color: metric.color,
-                  width: 8,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+              colors: [
+                widget.metric.color.withAlpha(80),
+                widget.metric.color.withAlpha(0),
               ],
             ),
-          )
-          .toList(),
-    );
-  }
-
-  PieChartData _pieData(ColorScheme cs) {
-    final val = metric.history.isNotEmpty ? metric.history.last.y : 0.0;
-    return PieChartData(
-      sectionsSpace: 2,
-      centerSpaceRadius: 50,
-      sections: [
-        PieChartSectionData(
-          value: val,
-          color: metric.color,
-          radius: 40,
-          title: '${val.toInt()}%',
-          titleStyle: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: cs.onSurface,
           ),
-        ),
-        PieChartSectionData(
-          value: (100 - val).clamp(0, 100).toDouble(),
-          color: cs.onSurface.withAlpha(18),
-          radius: 40,
-          title: '',
         ),
       ],
     );

@@ -10,8 +10,6 @@ class CameraControl extends StatelessWidget {
 
   final bool isDebugVisible;
   final bool isFullScreen;
-  final String currentQuality;
-  final Function(String) onQualityChanged;
 
   const CameraControl({
     super.key,
@@ -22,8 +20,6 @@ class CameraControl extends StatelessWidget {
     this.onMapPressed,
     required this.isDebugVisible,
     this.isFullScreen = false,
-    required this.currentQuality,
-    required this.onQualityChanged,
   });
 
   @override
@@ -37,7 +33,7 @@ class CameraControl extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Botão Info/Debug
+          // Botão Info/Debug
           _buildIconButton(
             icon: isDebugVisible
                 ? Icons.info_rounded
@@ -47,19 +43,7 @@ class CameraControl extends StatelessWidget {
             tooltip: "Debug Info",
           ),
 
-          const SizedBox(width: 4),
-
-          // 2. Seletor de Qualidade
-          _buildQualityDropdown(theme),
-
-          VerticalDivider(
-            width: 20,
-            indent: 10,
-            endIndent: 10,
-            color: colorScheme.onSurface.withAlpha(20),
-          ),
-
-          // 3. Botão Mapa
+          // Botão Mapa
           _buildIconButton(
             icon: Icons.map_rounded,
             onTap: onMapPressed,
@@ -67,7 +51,7 @@ class CameraControl extends StatelessWidget {
             tooltip: "Ver Mapa",
           ),
 
-          // 4. Botão Fullscreen
+          // Botão Fullscreen
           _buildIconButton(
             icon: isFullScreen
                 ? Icons.fullscreen_exit_rounded
@@ -77,9 +61,7 @@ class CameraControl extends StatelessWidget {
             tooltip: "Ecrã Inteiro",
           ),
 
-          const SizedBox(width: 8),
-
-          // 5. Botão Captura Foto (Destaque)
+          // Botão Captura Foto (Destaque)
           Container(
             decoration: BoxDecoration(
               color: colorScheme.primary.withAlpha(10),
@@ -89,38 +71,12 @@ class CameraControl extends StatelessWidget {
               icon: Icons.camera_alt_rounded,
               onTap: onCapturePressed,
               color: colorScheme.primary,
-              tooltip: "Tirar Foto",
+              tooltip: "Tirar Screenshot",
             ),
           ),
 
           const SizedBox(width: 4),
         ],
-      ),
-    );
-  }
-
-  Widget _buildQualityDropdown(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: DropdownButton<String>(
-        value: currentQuality,
-        underline: const SizedBox(),
-        alignment: Alignment.center,
-        icon: const Icon(Icons.arrow_drop_up_rounded, size: 18),
-        dropdownColor: theme.colorScheme.surface.withAlpha(95),
-        style: TextStyle(
-          color: theme.colorScheme.onSurface,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-        items: const [
-          DropdownMenuItem(value: 'auto', child: Text('auto')),
-          DropdownMenuItem(value: '720', child: Text('720p')),
-          DropdownMenuItem(value: '480', child: Text('480p')),
-        ],
-        onChanged: (val) {
-          if (val != null) onQualityChanged(val);
-        },
       ),
     );
   }

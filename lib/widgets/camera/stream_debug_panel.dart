@@ -14,12 +14,23 @@ class StreamDebugPanel extends StatelessWidget {
   String _getString(String key, {String defaultValue = "---"}) =>
       stats[key]?.toString() ?? defaultValue;
 
-  String _getFps() => (stats['fps'] as num?)?.toInt().toString() ?? "0";
+  String _getFps() {
+    final raw = stats['fps']?.toString() ?? '0';
+    // Pode vir como "30.0 fps" do WebRTCService ou como num direto
+    final numeric = double.tryParse(raw.replaceAll(RegExp(r'[^0-9.]'), ''));
+    return numeric?.toInt().toString() ?? '0';
+  }
 
-  String _getLatency() => _getString('latency', defaultValue: "0");
+  String _getLatency() => _getString(
+    'latency',
+    defaultValue: '0 ms',
+  ).replaceAll(' ms', ''); // remove unidade duplicada se vier formatada
 
-  String _getPacketLoss() =>
-      ((stats['loss'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(2);
+  String _getPacketLoss() {
+    final raw = stats['packetLoss']?.toString() ?? '0.00%';
+    final numeric = double.tryParse(raw.replaceAll('%', '').trim());
+    return (numeric ?? 0.0).toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +54,7 @@ class StreamDebugPanel extends StatelessWidget {
           IntrinsicWidth(
             child: Column(
               children: [
-                _DebugLine(label: "RESOLUÇÃO", value: _getString('res')),
+                _DebugLine(label: "RESOLUÇÃO", value: _getString('resolution')),
                 _DebugLine(label: "FRAME RATE", value: "${_getFps()} FPS"),
                 _DebugLine(label: "LATÊNCIA", value: "${_getLatency()} ms"),
                 _DebugLine(

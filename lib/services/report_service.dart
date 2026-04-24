@@ -49,10 +49,10 @@ class ReportService {
   }
 
   Future<void> generatePdf(DateFilterProvider filter) async {
-    final summary = await _statsService.getHistoryData(
-      filter.range.start,
-      filter.range.end,
-    );
+    // .first obtém uma única emissão do stream e fecha — equivalente ao antigo Future
+    final summary = await _statsService
+        .streamHistoryData(filter.range.start, filter.range.end)
+        .first;
 
     final fileName = _getFileName('pdf', _getLabel(filter));
 

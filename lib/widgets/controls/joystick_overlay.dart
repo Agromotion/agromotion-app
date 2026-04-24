@@ -29,12 +29,24 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final Color baseColor = colorScheme.onSurface.withAlpha(
-      widget.isFullScreen ? 8 : 15,
-    );
-    final Color stickColor = colorScheme.primary.withAlpha(60);
-    final Color arrowActiveColor = colorScheme.primary;
-    final Color arrowInactiveColor = colorScheme.onSurface.withAlpha(10);
+    // Em fullscreen: cores fixas brancas com opacidade — visíveis sobre qualquer vídeo.
+    // Em portrait: usa o colorScheme normal do tema.
+    final Color baseColor = widget.isFullScreen
+        ? Colors.white.withAlpha(25) // anel exterior subtil mas visível
+        : colorScheme.onSurface.withAlpha(15);
+
+    final Color stickColor = widget.isFullScreen
+        ? Colors.white.withAlpha(90) // stick claramente visível
+        : colorScheme.primary.withAlpha(60);
+
+    final Color arrowActiveColor = widget.isFullScreen
+        ? Colors
+              .white // seta ativa: branco puro
+        : colorScheme.primary;
+
+    final Color arrowInactiveColor = widget.isFullScreen
+        ? Colors.white.withAlpha(40) // seta inativa: branco muito suave
+        : colorScheme.onSurface.withAlpha(10);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -49,7 +61,6 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Joystick da Esquerda
                 _buildJoystick(
                   colorScheme,
                   baseColor,
@@ -59,7 +70,6 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
                   isLeftPosition: true,
                 ),
                 const Spacer(),
-                // Joystick da Direita
                 _buildJoystick(
                   colorScheme,
                   baseColor,
@@ -84,9 +94,6 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
     Color inactiveA, {
     required bool isLeftPosition,
   }) {
-    // Define se este joystick específico (na posição atual) deve ser Vertical ou Horizontal
-    // Se swapJoysticks for false: Esquerda = Vertical, Direita = Horizontal
-    // Se swapJoysticks for true:  Esquerda = Horizontal, Direita = Vertical
     bool isVerticalMode = isLeftPosition
         ? !widget.swapJoysticks
         : widget.swapJoysticks;
@@ -100,7 +107,18 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Setas Verticais (Cima/Baixo)
+          // Halo de fundo em fullscreen para garantir contraste mínimo
+          // mesmo que o vídeo seja totalmente branco ou claro.
+          if (widget.isFullScreen)
+            Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withAlpha(50),
+              ),
+            ),
+
           if (isVerticalMode) ...[
             _buildArrow(
               Icons.arrow_drop_up_rounded,
@@ -117,7 +135,6 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
               inactiveA,
             ),
           ],
-          // Setas Horizontais (Esquerda/Direita)
           if (!isVerticalMode) ...[
             _buildArrow(
               Icons.arrow_left_rounded,
@@ -134,6 +151,7 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
               inactiveA,
             ),
           ],
+
           Joystick(
             mode: isVerticalMode
                 ? JoystickMode.vertical
@@ -177,7 +195,7 @@ class _JoystickOverlayState extends State<JoystickOverlay> {
       alignment: alignment,
       child: Icon(
         icon,
-        size: 35, // Aumentado ligeiramente para melhor visibilidade
+        size: 35,
         color: isActive ? activeColor : inactiveColor,
       ),
     );
