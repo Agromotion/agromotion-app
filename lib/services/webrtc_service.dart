@@ -18,10 +18,12 @@ class WebRTCService {
 
   StreamSubscription? _signalingSubscription;
   bool _isDisposed = false;
-  bool _isConnecting = false;
-  bool _offerPublished = false;
-  bool _remoteDescriptionSet = false;
-  MediaStream? get remoteStream => remoteRenderer.srcObject;
+  
+  // --- HEARTBEAT & STATS ---
+  Timer? _heartbeatTimer;
+  Timer? _statsTimer;
+  final _statsController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get statsStream => _statsController.stream;
 
   bool get isConnected =>
       _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
@@ -31,196 +33,168 @@ class WebRTCService {
 
   final Set<String> _processedCandidates = {};
 
-  Timer? _statsTimer;
-  final _statsController = StreamController<Map<String, dynamic>>.broadcast();
-  Stream<Map<String, dynamic>> get statsStream => _statsController.stream;
-
   Future<void> connect() async {
-    if (_isDisposed || _isConnecting) return;
-    _isConnecting = true;
+    if (_isDisposed) return;
 
+    // 1. Peer Connection Configuration (Metered.ca para acesso remoto)
+    Map<String, dynamic> configuration = {
+      "iceServers": [
+        {"urls": "stun:stun.relay.metered.ca:80"},
+        {
+          "urls": [
+            "turn:global.relay.metered.ca:80",
+            "turn:global.relay.metered.ca:443",
+            "turn:global.relay.metered.ca:443?transport=tcp",
+            "turns:global.relay.metered.ca:443?transport=tcp"
+          ],
+          "username": "aaaaa",
+          "password": "aaaaa",
+        },
+      ],
+      "sdpSemantics": "unified-plan",
+      "iceCandidatePoolSize": 10,
+    };
+
+    _peerConnection = await createPeerConnection(configuration);
+
+    // 2. Setup DataChannel
+    RTCDataChannelInit dcInit = RTCDataChannelInit()
+      ..ordered = false
+      ..maxRetransmits = 0;
+
+    _dataChannel = await _peerConnection!.createDataChannel("commands", dcInit);
+
+    // Gerir Heartbeat conforme o estado do canal
+    _dataChannel!.onDataChannelState = (state) {
+      debugPrint("DataChannel State: $state");
+      if (state == RTCDataChannelState.RTCDataChannelOpen) {
+        _startHeartbeat();
+      } else {
+        _heartbeatTimer?.cancel();
+      }
+    };
+
+    // 3. Handle Remote Video Track
+    _peerConnection!.onTrack = (event) {
+      if (event.track.kind == 'video' && !_isDisposed) {
+        remoteRenderer.srcObject = event.streams[0];
+      }
+    };
+
+    // 4. Handle ICE Candidates
+    _peerConnection!.onIceCandidate = (candidate) {
+      if (candidate.candidate != null) {
+        _db.collection('robots').doc(robotId).update({
+          'app_candidates': FieldValue.arrayUnion([
+            {
+              'candidate': candidate.candidate,
+              'sdpMid': candidate.sdpMid ?? "0",
+              'sdpMLineIndex': candidate.sdpMLineIndex ?? 0,
+            },
+          ]),
+        });
+      }
+    };
+
+    _peerConnection!.onConnectionState = (state) {
+      debugPrint("WebRTC Connection State: $state");
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        _startStatsCollection();
+      }
+    };
+
+    // 5. Create WebRTC Offer
+    // Adicionamos transceivers para garantir o recebimento de vídeo
+    await _peerConnection!.addTransceiver(
+      kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+      init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
+    );
+
+    RTCSessionDescription offer = await _peerConnection!.createOffer({});
+    await _peerConnection!.setLocalDescription(offer);
+
+    // 6. Push Offer to Firestore
+    final userEmail = _authService.currentUser?.email ?? "unknown";
+    
     try {
-      await _cleanup();
-
-      _processedCandidates.clear();
-      _remoteDescriptionSet = false;
-      _offerPublished = false;
-
-      final configuration = {
-        "iceServers": [
-          {"urls": "stun:stun.l.google.com:19302"},
-          {
-            "urls": "turn:openrelay.metered.ca:80",
-            "username": "openrelayproject",
-            "credential": "openrelayproject",
-          },
-          {
-            "urls": "turn:openrelay.metered.ca:443",
-            "username": "openrelayproject",
-            "credential": "openrelayproject",
-          },
-        ],
-        "sdpSemantics": "unified-plan",
-      };
-
-      _peerConnection = await createPeerConnection(configuration);
-
-      final dcInit = RTCDataChannelInit()
-        ..ordered = false
-        ..maxRetransmits = 0;
-      _dataChannel = await _peerConnection!.createDataChannel(
-        "commands",
-        dcInit,
-      );
-
-      _peerConnection!.onTrack = (event) {
-        if (event.track.kind == 'video' && !_isDisposed) {
-          remoteRenderer.srcObject = event.streams[0];
-        }
-      };
-
-      _peerConnection!.onIceCandidate = (candidate) {
-        if (!_offerPublished) return;
-        if (candidate.candidate != null && candidate.candidate!.isNotEmpty) {
-          _db.collection('robots').doc(robotId).update({
-            'app_candidates': FieldValue.arrayUnion([
-              {
-                'candidate': candidate.candidate,
-                'sdpMid': candidate.sdpMid ?? "0",
-                'sdpMLineIndex': candidate.sdpMLineIndex ?? 0,
-              },
-            ]),
-          });
-        }
-      };
-
-      // Listener para o estado da conexão para disparar o pedido de controlo/fila
-      _peerConnection!.onConnectionState = (state) {
-        debugPrint("WebRTC Connection State: $state");
-        if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          // Quando conecta, pede controlo ou entra na fila
-          _requestControl();
-          _startStatsCollection();
-        }
-      };
-
-      await _peerConnection!.addTransceiver(
-        kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
-        init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
-      );
-
-      final offer = await _peerConnection!.createOffer({});
-      await _peerConnection!.setLocalDescription(offer);
-
-      debugPrint("DEBUG: A iniciar handshake com Robô ID: '$robotId'");
-
-      final userEmail = _authService.currentUser?.email;
-
-      await _db.collection('robots').doc(robotId).update({
+      final docRef = _db.collection('robots').doc(robotId);
+      
+      await docRef.update({
         'webrtc_session': {
           'offer': {'sdp': offer.sdp, 'type': offer.type},
           'answer': null,
         },
         'control.last_handshake_email': userEmail,
-        'app_candidates': [],
+        'app_candidates': [], 
         'robot_candidates': [],
         'last_handshake': FieldValue.serverTimestamp(),
       });
+      debugPrint("DEBUG: Offer publicada para $userEmail");
+    } catch (e) {
+      debugPrint("DEBUG ERROR: Falha ao publicar offer: $e");
+    }
+    
+    // 7. Listen for Answer and ICE Candidates
+    _signalingSubscription = _db
+        .collection('robots')
+        .doc(robotId)
+        .snapshots()
+        .listen((snapshot) async {
+          if (!snapshot.exists || _isDisposed) return;
+          final data = snapshot.data()!;
 
-      _offerPublished = true;
+          final session = data['webrtc_session'];
+          if (session != null &&
+              session['answer'] != null &&
+              _peerConnection?.getRemoteDescription() == null) {
+            await _peerConnection!.setRemoteDescription(
+              RTCSessionDescription(
+                session['answer']['sdp'],
+                session['answer']['type'],
+              ),
+            );
+          }
 
-      _signalingSubscription = _db
-          .collection('robots')
-          .doc(robotId)
-          .snapshots()
-          .listen((snapshot) async {
-            if (!snapshot.exists || _isDisposed) return;
-            final data = snapshot.data()!;
-
-            final session = data['webrtc_session'];
-            if (session != null &&
-                session['answer'] != null &&
-                !_remoteDescriptionSet) {
-              try {
-                await _peerConnection!.setRemoteDescription(
-                  RTCSessionDescription(
-                    session['answer']['sdp'],
-                    session['answer']['type'],
+          final List? robotCandidates = data['robot_candidates'];
+          if (robotCandidates != null && robotCandidates.isNotEmpty) {
+            for (var c in robotCandidates) {
+              String candidateStr = c['candidate'];
+              if (!_processedCandidates.contains(candidateStr)) {
+                await _peerConnection!.addCandidate(
+                  RTCIceCandidate(
+                    candidateStr,
+                    c['sdpMid'],
+                    c['sdpMLineIndex'],
                   ),
                 );
-                _remoteDescriptionSet = true;
-                debugPrint("WebRTC: ✓ Answer do robô aplicada com sucesso.");
-              } catch (e) {
-                debugPrint("WebRTC ERROR: Falha ao aplicar Answer: $e");
+                _processedCandidates.add(candidateStr);
               }
             }
-
-            final List? robotCandidates = data['robot_candidates'];
-            if (_remoteDescriptionSet &&
-                robotCandidates != null &&
-                robotCandidates.isNotEmpty) {
-              for (var c in robotCandidates) {
-                final String candidateStr = c['candidate'] ?? '';
-                if (candidateStr.isEmpty) continue;
-
-                if (!_processedCandidates.contains(candidateStr)) {
-                  _processedCandidates.add(candidateStr);
-                  try {
-                    await _peerConnection!.addCandidate(
-                      RTCIceCandidate(
-                        candidateStr,
-                        c['sdpMid'] ?? "0",
-                        c['sdpMLineIndex'] ?? 0,
-                      ),
-                    );
-                  } catch (e) {
-                    debugPrint(
-                      "WebRTC ERROR: Falha ao adicionar candidato: $e",
-                    );
-                  }
-                }
-              }
-            }
-          });
-    } finally {
-      _isConnecting = false;
-    }
+          }
+        });
   }
 
-  // Implementada lógica de Transação para a fila FIFO
-  Future<void> _requestControl() async {
-    final userEmail = _authService.currentUser?.email;
-    if (userEmail == null) return;
-
-    final docRef = _db.collection('robots').doc(robotId);
-
-    try {
-      await _db.runTransaction((transaction) async {
-        DocumentSnapshot snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) return;
-
-        // Apenas adicionamos à fila. NÃO alteramos o active_controller_email na App.
-        transaction.update(docRef, {
-          'control.viewer_queue': FieldValue.arrayUnion([userEmail]),
-          'status.video_client_count': FieldValue.increment(1),
-        });
-      });
-      debugPrint("WebRTC: Adicionado à fila de espera.");
-    } catch (e) {
-      debugPrint("WebRTC Error Transaction: $e");
-    }
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (isConnected && !_isDisposed) {
+        sendJoystick(0.0, 0.0);
+      } else {
+        timer.cancel();
+      }
+    });
   }
 
   void sendJoystick(double x, double y) {
     if (isConnected && !_isDisposed) {
-      final msg = jsonEncode({
+      final String msg = jsonEncode({
         "x": double.parse(x.toStringAsFixed(2)),
         "y": double.parse(y.toStringAsFixed(2)),
       });
       try {
         _dataChannel!.send(RTCDataChannelMessage(msg));
       } catch (e) {
-        debugPrint("Erro ao enviar via DataChannel: $e");
+        debugPrint("Erro DataChannel: $e");
       }
     }
   }
@@ -238,10 +212,7 @@ class WebRTCService {
         double? packetsLostPercent;
 
         for (final report in stats) {
-          // Inbound RTP — vídeo recebido
-          if (report.type == 'inbound-rtp' &&
-              report.values['kind'] == 'video') {
-            final framesDecoded = report.values['framesDecoded'];
+          if (report.type == 'inbound-rtp' && report.values['kind'] == 'video') {
             final fps = report.values['framesPerSecond'];
             if (fps != null) frameRate = (fps as num).toDouble();
 
@@ -256,29 +227,18 @@ class WebRTCService {
             final lost = report.values['packetsLost'];
             final received = report.values['packetsReceived'];
             if (lost != null && received != null) {
-              final total =
-                  (received as num).toDouble() + (lost as num).toDouble();
-              packetsLostPercent = total > 0
-                  ? ((lost as num) / total * 100)
-                  : 0.0;
+              final total = (received as num).toDouble() + (lost as num).toDouble();
+              packetsLostPercent = total > 0 ? ((lost as num) / total * 100) : 0.0;
             }
           }
         }
 
         if (!_statsController.isClosed) {
           _statsController.add({
-            'frameRate': frameRate != null
-                ? '${frameRate.toStringAsFixed(1)} fps'
-                : '---',
-            'resolution': (frameWidth != null && frameHeight != null)
-                ? '${frameWidth}x${frameHeight}'
-                : '---',
-            'latency': jitterMs != null
-                ? '${jitterMs.toStringAsFixed(0)} ms'
-                : '---',
-            'packetLoss': packetsLostPercent != null
-                ? '${packetsLostPercent.toStringAsFixed(1)}%'
-                : '---',
+            'frameRate': frameRate != null ? '${frameRate.toStringAsFixed(1)} fps' : '---',
+            'resolution': (frameWidth != null && frameHeight != null) ? '${frameWidth}x${frameHeight}' : '---',
+            'latency': jitterMs != null ? '${jitterMs.toStringAsFixed(0)} ms' : '---',
+            'packetLoss': packetsLostPercent != null ? '${packetsLostPercent.toStringAsFixed(1)}%' : '---',
           });
         }
       } catch (e) {
@@ -287,33 +247,15 @@ class WebRTCService {
     });
   }
 
-  Future<void> _cleanup() async {
-    _signalingSubscription?.cancel();
-    _signalingSubscription = null;
-    _dataChannel?.close();
-    _dataChannel = null;
-    if (_peerConnection != null) {
-      await _peerConnection!.close();
-      _peerConnection = null;
-    }
-    remoteRenderer.srcObject = null;
-    _processedCandidates.clear();
-    _statsTimer?.cancel();
-    _statsTimer = null;
-    if (!_statsController.isClosed) _statsController.close();
-  }
-
   void dispose() {
     _isDisposed = true;
-    _remoteDescriptionSet = false;
-    _offerPublished = false;
+    _heartbeatTimer?.cancel();
+    _statsTimer?.cancel();
     _signalingSubscription?.cancel();
     _dataChannel?.close();
     _peerConnection?.dispose();
+    if (!_statsController.isClosed) _statsController.close();
     remoteRenderer.srcObject = null;
     _processedCandidates.clear();
-    _statsTimer?.cancel();
-    _statsTimer = null;
-    if (!_statsController.isClosed) _statsController.close();
   }
 }
