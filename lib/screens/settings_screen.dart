@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:agromotion/widgets/agro_appbar.dart';
 import 'package:agromotion/widgets/settings/section_title.dart';
 import 'package:agromotion/widgets/settings/settings_tile.dart';
 import 'package:agromotion/screens/admins_screen.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -31,14 +29,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _appVersion = '0.0.0';
   String _buildNumber = '0';
-  String _currentStoragePath = "A carregar...";
   bool _joystickSwap = false;
 
   @override
   void initState() {
     super.initState();
     _loadPackageInfo();
-    _loadStoragePath();
     _loadJoystickSwap();
   }
 
@@ -55,30 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Carrega o caminho atual de armazenamento de capturas
-  Future<void> _loadStoragePath() async {
-    final path = await _storageService.getSavePath();
-    setState(() => _currentStoragePath = path);
-  }
-
   /// Carrega a preferência de troca de joysticks
   Future<void> _loadJoystickSwap() async {
     final swap = await _storageService.getJoystickSwap();
     setState(() => _joystickSwap = swap);
-  }
-
-  /// Abre o seletor de pastas e atualiza o estado
-  Future<void> _handlePickPath() async {
-    final newPath = await _storageService.pickCustomPath();
-    if (newPath != null) {
-      setState(() => _currentStoragePath = newPath);
-      if (mounted) {
-        AgroSnackbar.show(
-          context,
-          message: "Local de armazenamento atualizado",
-        );
-      }
-    }
   }
 
   Future<void> _handleUserManagement() async {
@@ -143,11 +119,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                       const SizedBox(height: 32),
 
-                      const SectionTitle(title: 'Armazenamento & Capturas'),
-                      _buildStorageTile(),
-
-                      const SizedBox(height: 32),
-
                       // Secções de Joysticks / Gestão de users e logout só aparecem se
                       // o utilizador estiver atualmente logado
                       if (isUserLoggedIn) ...[
@@ -201,28 +172,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
         onChanged: (value) => provider.setThemeMode(value!),
       ),
-    );
-  }
-
-  /// Constrói a informação de armazenamento (Diferencia Web de Desktop/Mobile)
-  Widget _buildStorageTile() {
-    final bool canChange = !kIsWeb && !Platform.isAndroid && !Platform.isIOS;
-
-    return SettingsTile(
-      icon: kIsWeb ? Icons.download_rounded : Icons.folder_special_outlined,
-      title: 'Local das Capturas',
-      subtitle: Text(
-        kIsWeb ? 'Gerido pelo browser' : _currentStoragePath,
-        style: const TextStyle(fontSize: 12),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: canChange
-          ? IconButton(
-              icon: const Icon(Icons.edit_rounded, size: 20),
-              onPressed: _handlePickPath,
-            )
-          : null,
     );
   }
 

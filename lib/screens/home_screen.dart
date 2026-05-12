@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/models/metric_data.dart';
-import 'package:agromotion/widgets/home/home_action_button.dart';
+import 'package:agromotion/widgets/home/control_robot_button.dart';
 import 'package:agromotion/widgets/statistics/realtime_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:agromotion/widgets/agro_appbar.dart';
-import 'package:agromotion/screens/camera_screen.dart';
 import 'package:agromotion/theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -81,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen>
                   showStatus: true,
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 5, 24, 200),
+                  padding: const EdgeInsets.fromLTRB(24, 5, 24, 250),
                   sliver: SliverToBoxAdapter(
                     child: RealtimePanel(snapshot: _realtime),
                   ),
@@ -89,17 +88,20 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
 
-            // Botão de Ação fixo acima da NavBar
+            // Botão de Meter em Automático
             Positioned(
               bottom: 110,
               left: 24,
               right: 24,
-              child: HomeActionButton(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CameraScreen()),
-                ),
-              ),
+              child: ControlRobotButton(),
+            ),
+
+            // Botão de Controlar Robô
+            Positioned(
+              bottom: 110,
+              left: 24,
+              right: 24,
+              child: ControlRobotButton(),
             ),
           ],
         ),

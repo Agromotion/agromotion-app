@@ -65,7 +65,6 @@ class _ReportsScreenState extends State<ReportsScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final customColors = theme.extension<AppColorsExtension>()!;
     final filterProvider = context.watch<DateFilterProvider>();
 

@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:agromotion/services/auth_service.dart';
+import 'package:agromotion/widgets/controls/drum_overlay.dart';
+import 'package:agromotion/widgets/glass_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -14,7 +14,6 @@ import 'package:agromotion/services/storage_service.dart';
 import 'package:agromotion/services/media_service.dart';
 import 'package:agromotion/widgets/glass_container.dart';
 import 'package:agromotion/widgets/agro_snackbar.dart';
-import 'package:agromotion/widgets/camera/camera_status_view.dart';
 import 'package:agromotion/widgets/camera/video_feed_display.dart';
 import 'package:agromotion/widgets/camera/stream_debug_panel.dart';
 import 'package:agromotion/widgets/controls/joystick_overlay.dart';
@@ -39,18 +38,9 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // — UI State —
   bool _isLoading = true;
-  String? _errorMessage;
   bool _showDebug = false;
   bool _isFullScreen = false;
   bool _hasActiveStream = false;
-
-  int _retryCount = 0;
-  static const int _maxAutoRetries = 3;
-  static const Duration _retryDelay = Duration(seconds: 3);
-
-  // — Platform —
-  bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
   // — Joystick —
   bool _joystickSwap = false;
@@ -148,85 +138,43 @@ class _CameraScreenState extends State<CameraScreen> {
     });
   }
 
-  Future<void> _initializeWebRTC({bool isAutoRetry = false}) async {
-    _streamCheckTimer?.cancel();
+  Future<void> _initializeWebRTC() async {
+    if (!mounted) return;
 
-    if (mounted) {
-      setState(() {
-        _hasActiveStream = false;
-        _isLoading = true;
-        _errorMessage = null; // Limpa erro anterior sempre que tenta
-      });
-    }
+    setState(() {
+      _isLoading = true;
+      _hasActiveStream = false;
+    });
 
-    // Aguarda o Firestore confirmar que o robô está pronto.
-    // Em mobile a ligação pode demorar — tentamos até _maxAutoRetries vezes.
-    bool isVideoReady = false;
     try {
       final doc = await FirebaseFirestore.instance
           .collection('robots')
           .doc(_robotId)
-          .get()
-          .timeout(const Duration(seconds: 10));
-      isVideoReady = doc.data()?['status']?['video_ready'] ?? false;
-    } on TimeoutException {
-      // Firestore não respondeu — trata como "ainda não pronto"
-      isVideoReady = false;
-    } catch (_) {
-      isVideoReady = false;
-    }
+          .get();
+      bool isVideoReady = doc.data()?['status']?['video_ready'] ?? false;
 
-    if (!isVideoReady) {
-      if (_retryCount < _maxAutoRetries) {
-        _retryCount++;
-        // Retry silencioso: mantém o spinner, não mostra erro
-        Future.delayed(_retryDelay, () {
-          if (mounted) _initializeWebRTC(isAutoRetry: true);
-        });
+      if (!isVideoReady) {
+        // Se não está pronto, espera 3 segundos e tenta sozinho de novo
+        Future.delayed(const Duration(seconds: 3), _initializeWebRTC);
         return;
       }
-      // Esgotou os retries automáticos → mostra mensagem de espera (não erro)
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "A aguardar inicialização da câmara...";
-        });
-        // Continua a tentar em background com intervalo maior
-        Future.delayed(const Duration(seconds: 5), () {
-          if (mounted) {
-            _retryCount = 0;
-            _initializeWebRTC();
-          }
-        });
-      }
-      return;
-    }
 
-    // Firestore confirmou video_ready — tenta WebRTC
-    _retryCount = 0;
-    try {
-      if (!mounted) return;
+      // Se chegou aqui, o robô diz que está pronto. Tenta ligar o WebRTC.
       _webrtcService?.dispose();
       _webrtcService = WebRTCService(remoteRenderer: _remoteRenderer);
-      await _webrtcService!.connect().timeout(const Duration(seconds: 20));
+
+      await _webrtcService!.connect().timeout(const Duration(seconds: 15));
+
       if (mounted) {
         setState(() => _isLoading = false);
         _startStreamCheck();
         _subscribeToWebRTCStats();
       }
-    } on TimeoutException {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "O robô não respondeu. Verifica a ligação.";
-        });
-      }
     } catch (e) {
+      debugPrint("Erro na conexão: $e");
+      // Em caso de erro (timeout ou rede), tenta de novo automaticamente após 5 segundos
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "Erro ao ligar ao robô.";
-        });
+        Future.delayed(const Duration(seconds: 5), _initializeWebRTC);
       }
     }
   }
@@ -405,56 +353,63 @@ class _CameraScreenState extends State<CameraScreen> {
           flex: 4,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Stack(
-              children: [
-                if (_isLoading || _errorMessage != null)
-                  CameraStatusView(
-                    isLoading: _isLoading,
-                    errorMessage: _errorMessage,
-                    onRetry: _initializeWebRTC,
-                  )
-                else
-                  Stack(
-                    children: [
-                      VideoFeedDisplay(
-                        renderer: _remoteRenderer,
-                        isFullScreen: false,
-                      ),
-                      if (!_hasActiveStream) _buildStreamLoadingOverlay(),
-                    ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
+                children: [
+                  VideoFeedDisplay(
+                    renderer: _remoteRenderer,
+                    isFullScreen: false,
                   ),
 
-                if (_showDebug)
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: StreamDebugPanel(stats: _streamStats),
-                  ),
-              ],
+                  _buildStreamLoadingOverlay(isFullScreen: false),
+
+                  // Drum Control só aparece com VÍDEO + PERMISSÃO
+                  if (_hasActiveStream && _canControl)
+                    Positioned(
+                      right: 15,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: DrumOverlay(
+                          onChanged: (val) => _webrtcService?.sendDrum(val),
+                        ),
+                      ),
+                    ),
+
+                  if (_showDebug)
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: StreamDebugPanel(stats: _streamStats),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
 
-        // Joystick or waiting message
-        if (!_isDesktop)
-          Container(
-            height: 180,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: _canControl
-                  ? JoystickOverlay(
-                      key: const ValueKey("joystick_on"),
-                      transparent: false,
-                      swapJoysticks: _joystickSwap,
-                      onMoveLeft: (x, y) =>
-                          _handleJoystickUpdate(x, y, isLeft: true),
-                      onMoveRight: (x, y) =>
-                          _handleJoystickUpdate(x, y, isLeft: false),
-                    )
-                  : _buildControlLockedMessage(),
-            ),
+        // Joystick Area
+        Container(
+          height: 180,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _hasActiveStream
+                ? (_canControl
+                      ? JoystickOverlay(
+                          key: const ValueKey("joystick_on"),
+                          transparent: false,
+                          swapJoysticks: _joystickSwap,
+                          onMoveLeft: (x, y) =>
+                              _handleJoystickUpdate(x, y, isLeft: true),
+                          onMoveRight: (x, y) =>
+                              _handleJoystickUpdate(x, y, isLeft: false),
+                        )
+                      : _buildControlLockedMessage())
+                : const SizedBox.shrink(),
           ),
+        ),
 
         // Bottom controls
         Padding(
@@ -484,36 +439,44 @@ class _CameraScreenState extends State<CameraScreen> {
             isFullScreen: true,
           ),
         ),
+        Positioned.fill(child: _buildStreamLoadingOverlay(isFullScreen: true)),
 
-        // Stream loading overlay (fullscreen)
-        if (!_hasActiveStream && !_isLoading)
-          Positioned.fill(
-            child: _buildStreamLoadingOverlay(isFullScreen: true),
-          ),
-
-        // Joysticks
-        if (!_isDesktop && _canControl)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 60,
-            child: JoystickOverlay(
-              transparent: true,
-              isFullScreen: true,
-              swapJoysticks: _joystickSwap,
-              onMoveLeft: (x, y) => _handleJoystickUpdate(x, y, isLeft: true),
-              onMoveRight: (x, y) => _handleJoystickUpdate(x, y, isLeft: false),
+        if (_hasActiveStream) ...[
+          if (_canControl) ...[
+            // Joysticks
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 60,
+              child: JoystickOverlay(
+                transparent: true,
+                isFullScreen: true,
+                swapJoysticks: _joystickSwap,
+                onMoveLeft: (x, y) => _handleJoystickUpdate(x, y, isLeft: true),
+                onMoveRight: (x, y) =>
+                    _handleJoystickUpdate(x, y, isLeft: false),
+              ),
             ),
-          ),
 
-        // Control locked banner (fullscreen)
-        if (!_canControl)
-          Positioned(
-            top: 80,
-            left: 0,
-            right: 0,
-            child: Center(child: _buildControlLockedBanner()),
-          ),
+            // Drum
+            Positioned(
+              right: 20,
+              bottom: 100,
+              child: DrumOverlay(
+                isFullScreen: true,
+                onChanged: (val) => _webrtcService?.sendDrum(val),
+              ),
+            ),
+          ] else ...[
+            // Banner de Bloqueio (Só aparece se o vídeo estiver pronto e não tiver permissão)
+            Positioned(
+              top: 80,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildControlLockedBanner()),
+            ),
+          ],
+        ],
 
         // Top HUD
         Positioned(
@@ -526,9 +489,9 @@ class _CameraScreenState extends State<CameraScreen> {
                 flex: 1,
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: _buildGlassButton(
-                    Icons.arrow_back_ios_new,
-                    _toggleFullScreen,
+                  child: GlassButton(
+                    icon: Icons.arrow_back_ios_new,
+                    onTap: _toggleFullScreen,
                   ),
                 ),
               ),
@@ -538,18 +501,22 @@ class _CameraScreenState extends State<CameraScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _buildGlassButton(
-                      _showDebug ? Icons.bug_report : Icons.bug_report_outlined,
-                      () => setState(() => _showDebug = !_showDebug),
-                      active: _showDebug,
+                    GlassButton(
+                      icon: _showDebug
+                          ? Icons.bug_report
+                          : Icons.bug_report_outlined,
+                      onTap: () => setState(() => _showDebug = !_showDebug),
                     ),
                     const SizedBox(width: 12),
-                    _buildGlassButton(Icons.map_rounded, () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MapScreen()),
-                      );
-                    }),
+                    GlassButton(
+                      icon: Icons.map_rounded,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MapScreen()),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -566,11 +533,14 @@ class _CameraScreenState extends State<CameraScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildGlassButton(Icons.camera_alt_rounded, _captureScreenshot),
+                GlassButton(
+                  icon: Icons.camera_alt_rounded,
+                  onTap: _captureScreenshot,
+                ),
                 const SizedBox(width: 20),
-                _buildGlassButton(
-                  Icons.fullscreen_exit_rounded,
-                  _toggleFullScreen,
+                GlassButton(
+                  icon: Icons.fullscreen_exit_rounded,
+                  onTap: _toggleFullScreen,
                 ),
               ],
             ),
@@ -689,28 +659,6 @@ class _CameraScreenState extends State<CameraScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildGlassButton(
-    IconData icon,
-    VoidCallback onTap, {
-    bool active = false,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: GlassContainer(
-        padding: const EdgeInsets.all(12),
-        borderRadius: 50,
-        child: Icon(
-          icon,
-          color: active
-              ? colorScheme.primary
-              : colorScheme.onSurface.withAlpha(90),
-          size: 24,
-        ),
       ),
     );
   }

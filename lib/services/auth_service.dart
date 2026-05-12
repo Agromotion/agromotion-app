@@ -1,6 +1,5 @@
 library;
 
-import 'package:agromotion/firebase_options.dart'; // Ficheiro gerado pelo flutterfire configure
 import 'package:agromotion/utils/app_logger.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

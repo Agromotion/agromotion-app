@@ -12,7 +12,6 @@ class SummaryRow extends StatelessWidget {
       builder: (context, constraints) {
         // Tablet/desktop: 4 colunas numa única linha.
         // Telemóvel: 2 colunas × 2 linhas.
-        final isWide = constraints.maxWidth >= 600;
 
         return LayoutBuilder(
           builder: (context, constraints) {

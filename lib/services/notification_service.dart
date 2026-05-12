@@ -2,6 +2,7 @@ import 'package:agromotion/config/app_config.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -52,7 +53,8 @@ class NotificationService {
       sound: true,
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    if (!kIsWeb &&
+        settings.authorizationStatus == AuthorizationStatus.authorized) {
       String topic = AppConfig.robotId;
       await messaging.subscribeToTopic(topic);
     }

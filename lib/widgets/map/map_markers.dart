@@ -144,14 +144,9 @@ class _RobotMarkerPainter extends CustomPainter {
         center.dy - tipDistance * math.cos(headingRad!),
       );
       final leftAngle = headingRad! - _arrowHalfAngle;
-      final rightAngle = headingRad! + _arrowHalfAngle;
       final leftBase = Offset(
         center.dx + _circleRadius * math.sin(leftAngle),
         center.dy - _circleRadius * math.cos(leftAngle),
-      );
-      final rightBase = Offset(
-        center.dx + _circleRadius * math.sin(rightAngle),
-        center.dy - _circleRadius * math.cos(rightAngle),
       );
 
       final arrowPath = Path()
