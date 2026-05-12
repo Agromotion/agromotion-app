@@ -37,7 +37,6 @@ Future<Uint8List?> buildExcelReport({
     'Data/Hora',
     'Bateria %',
     'Tensão (V)',
-    'Corrente (A)',
     'CPU %',
     'RAM %',
     'Temp °C',
@@ -91,13 +90,6 @@ Future<Uint8List?> buildExcelReport({
     );
     c2.value = DoubleCellValue((d['battery_voltage'] as num? ?? 0).toDouble());
     c2.cellStyle = currentStyle;
-
-    // Corrente
-    var c3 = telSheet.cell(
-      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex),
-    );
-    c3.value = DoubleCellValue((d['battery_current'] as num? ?? 0).toDouble());
-    c3.cellStyle = currentStyle;
 
     // CPU
     var c4 = telSheet.cell(

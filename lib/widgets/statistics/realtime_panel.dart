@@ -67,17 +67,6 @@ class _BatteryCard extends StatelessWidget {
                 value: '${snapshot.batteryVoltage.toStringAsFixed(1)} V',
                 cs: cs,
               ),
-              _StatCell(
-                label: 'CORRENTE',
-                value: '${snapshot.batteryCurrent.toStringAsFixed(1)} A',
-                cs: cs,
-              ),
-              _StatCell(
-                label: 'POTÊNCIA',
-                value:
-                    '${(snapshot.batteryVoltage * snapshot.batteryCurrent).toStringAsFixed(1)} W',
-                cs: cs,
-              ),
             ],
           ),
         ],
