@@ -150,32 +150,6 @@ class _ChartPopupState extends State<ChartPopup> {
                 : LineChart(_lineData(cs)),
           ),
 
-          // Hint zoom/pan
-          if (widget.metric.history.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.pinch_rounded,
-                    size: 12,
-                    color: cs.onSurface.withAlpha(50),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Pinch para zoom · Arrasta para navegar',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: cs.onSurface.withAlpha(50),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          const SizedBox(height: 20),
-
           // Stats row (min / avg / max)
           if (widget.metric.history.isNotEmpty) _buildStatsRow(cs),
 

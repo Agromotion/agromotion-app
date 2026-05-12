@@ -45,12 +45,13 @@ class _BatteryCard extends StatelessWidget {
             icon: battery.icon,
             iconColor: battery.color,
             title: 'Bateria',
-            trailing: snapshot.batteryIsCharging
-                ? const _StatusBadge(
-                    label: 'A CARREGAR',
-                    color: Color(0xFFFDD835),
-                  )
-                : null,
+            trailing: _StatusBadge(
+              label: '${snapshot.batteryVoltage.toStringAsFixed(2)} V',
+              color: snapshot.batteryIsCharging
+                  ? const Color(0xFFFDD835)
+                  : battery.color,
+              icon: Icons.power,
+            ),
           ),
           const SizedBox(height: 16),
           _PercentageBar(
@@ -58,16 +59,6 @@ class _BatteryCard extends StatelessWidget {
             color: battery.color,
             label: '${snapshot.batteryPercentage}%',
             cs: cs,
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _StatCell(
-                label: 'TENSÃO',
-                value: '${snapshot.batteryVoltage.toStringAsFixed(1)} V',
-                cs: cs,
-              ),
-            ],
           ),
         ],
       ),
@@ -123,6 +114,14 @@ class _SystemCard extends StatelessWidget {
             color: ramColor,
             cs: cs,
           ),
+          const SizedBox(height: 10),
+          _StatusPill(
+            icon: Icons.videocam_rounded,
+            label: '${snapshot.videoClientCount} visualizadores',
+            color: snapshot.videoClientCount > 0
+                ? const Color(0xFF42A5F5)
+                : cs.onSurface.withOpacity(0.5),
+          ),
         ],
       ),
     );
@@ -156,38 +155,6 @@ class _GpsStatusCard extends StatelessWidget {
               MapShortcutButton(gpsColor: gpsColor),
             ],
           ),
-          const SizedBox(height: 14),
-          // Envolvemos os dados num FittedBox para não quebrar em ecrãs pequenos
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              children: [
-                _StatCell(
-                  label: 'LATITUDE',
-                  value: snapshot.gpsIsValid
-                      ? snapshot.gpsLatitude.toStringAsFixed(5)
-                      : '—',
-                  cs: cs,
-                ),
-                const SizedBox(width: 20),
-                _StatCell(
-                  label: 'LONGITUDE',
-                  value: snapshot.gpsIsValid
-                      ? snapshot.gpsLongitude.toStringAsFixed(5)
-                      : '—',
-                  cs: cs,
-                ),
-                const SizedBox(width: 20),
-                _StatCell(
-                  label: 'ALTITUDE',
-                  value: snapshot.gpsIsValid
-                      ? '${snapshot.gpsAltitude.toStringAsFixed(0)}m'
-                      : '—',
-                  cs: cs,
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 12),
           const Divider(height: 1, color: Colors.white10),
           const SizedBox(height: 12),
@@ -203,14 +170,7 @@ class _GpsStatusCard extends StatelessWidget {
                 label: snapshot.robotMoving ? 'Em movimento' : 'Parado',
                 color: snapshot.robotMoving
                     ? const Color(0xFF66BB6A)
-                    : cs.onSurface.withOpacity(0.5),
-              ),
-              _StatusPill(
-                icon: Icons.videocam_rounded,
-                label: '${snapshot.videoClientCount} visualizadores',
-                color: snapshot.videoClientCount > 0
-                    ? const Color(0xFF42A5F5)
-                    : cs.onSurface.withOpacity(0.5),
+                    : cs.onSurface.withAlpha(50),
               ),
             ],
           ),
