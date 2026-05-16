@@ -14,12 +14,17 @@ class WebRTCService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final AuthService _authService = AuthService();
 
+  Timer? _sendLoop;
+  double? _pendingX;
+  double? _pendingY;
+  double? _pendingDrum;
+
   String get robotId => AppConfig.robotId;
-  // Resolve o erro do userEmail pegando do AuthService
   String? get userEmail => _authService.currentUser?.email;
 
   StreamSubscription? _signalingSubscription;
   bool _isDisposed = false;
+  bool _answerSet = false;
 
   // Heartbeat e Stats
   Timer? _heartbeatTimer;
@@ -28,6 +33,7 @@ class WebRTCService {
   Stream<Map<String, dynamic>> get statsStream => _statsController.stream;
 
   final Set<String> _processedCandidates = {};
+  final List<RTCIceCandidate> _pendingRobotCandidates = []; // 📥 Fila temporária para candidatos do robô
 
   bool get isConnected =>
       _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
@@ -35,31 +41,73 @@ class WebRTCService {
 
   WebRTCService({required this.remoteRenderer});
 
+  void _startSendLoop() {
+  _sendLoop ??= Timer.periodic(const Duration(milliseconds: 30), (_) {
+    if (!isConnected || _dataChannel == null) return;
+
+    // prioridade: último estado apenas
+    if (_pendingX == null && _pendingY == null && _pendingDrum == null) {
+      return;
+    }
+
+    try {
+      if (_pendingDrum != null) {
+        _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
+          "drum": _pendingDrum,
+        })));
+        _pendingDrum = null;
+        return;
+      }
+
+      if (_pendingX != null || _pendingY != null) {
+        _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
+          "x": double.parse((_pendingX ?? 0).toStringAsFixed(2)),
+          "y": double.parse((_pendingY ?? 0).toStringAsFixed(2)),
+        })));
+
+        _pendingX = null;
+        _pendingY = null;
+      }
+    } catch (e) {
+      debugPrint("❌ [DataChannel] send loop error: $e");
+    }
+  });
+}
+
   Future<void> connect() async {
     if (_isDisposed) return;
+    _answerSet = false;
+    _processedCandidates.clear();
+    _pendingRobotCandidates.clear();
 
-    // 1. Configuração ICE Servers
+    // 1. Configuração Estática dos Servidores ICE (Metered.ca)
     Map<String, dynamic> configuration = {
       "iceServers": [
-        {"urls": "stun:stun.relay.metered.ca:80"},
-        {
-          "urls": [
-            "turn:global.relay.metered.ca:80",
-            "turn:global.relay.metered.ca:443",
-            "turn:global.relay.metered.ca:443?transport=tcp",
-            "turns:global.relay.metered.ca:443?transport=tcp",
-          ],
-          "username": "9d0023ef27dece71a035b9a1",
-          "password": "6UHvICJX+38sLhye",
-        },
-      ],
+      {"urls": "stun:stun.l.google.com:19302"},
+      {"urls": "stun:stun1.l.google.com:19302"},
+
+      // OpenRelay STUN
+      {"urls": "stun:openrelay.metered.ca:80"},
+
+      // OpenRelay TURN
+      {
+        "urls": [
+          "turn:openrelay.metered.ca:80",
+          "turn:openrelay.metered.ca:443",
+          "turn:openrelay.metered.ca:443?transport=tcp"
+        ],
+        "username": "openrelayproject",
+        "credential": "openrelayproject"
+      }
+    ],
       "sdpSemantics": "unified-plan",
       "iceCandidatePoolSize": 10,
+      "iceTransportPolicy": "all"
     };
 
     _peerConnection = await createPeerConnection(configuration);
 
-    // 2. Setup DataChannel (Baixa latência para comandos)
+    // 2. Setup DataChannel (Comandos do Joystick)
     RTCDataChannelInit dcInit = RTCDataChannelInit()
       ..ordered = false
       ..maxRetransmits = 0;
@@ -68,20 +116,21 @@ class WebRTCService {
 
     // 3. Handlers de Track e Connection State
     _peerConnection!.onTrack = (event) {
+      debugPrint("📡 [WebRTC] Track de vídeo recebida do robô!");
       if (event.track.kind == 'video' && !_isDisposed) {
         remoteRenderer.srcObject = event.streams[0];
       }
     };
 
     _peerConnection!.onConnectionState = (state) {
-      debugPrint("WebRTC Connection State: $state");
+      debugPrint("🌐 [WebRTC] Connection State alterado para: $state");
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _requestControl();
         _startStatsCollection();
       }
     };
 
-    // 4. Handle ICE Candidates (App -> Robot)
+    // 4. Handle ICE Candidates gerados localmente (App -> Robô)
     _peerConnection!.onIceCandidate = (candidate) {
       if (candidate.candidate != null) {
         _db.collection('robots').doc(robotId).update({
@@ -96,19 +145,18 @@ class WebRTCService {
       }
     };
 
-    // 5. Preparar Transceiver para Vídeo
+    // 5. Preparar Transceiver para receber o vídeo da câmara do Pi
     await _peerConnection!.addTransceiver(
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
     );
 
-    // 6. Criar e Publicar Offer
+    // 6. Criar e Publicar Offer Inicial no Firestore
     final offer = await _peerConnection!.createOffer({});
     await _peerConnection!.setLocalDescription(offer);
 
     try {
       final docRef = _db.collection('robots').doc(robotId);
-
       await docRef.update({
         'webrtc_session': {
           'offer': {'sdp': offer.sdp, 'type': offer.type},
@@ -119,12 +167,12 @@ class WebRTCService {
         'robot_candidates': [],
         'last_handshake': FieldValue.serverTimestamp(),
       });
-      debugPrint("DEBUG: Offer escrita no Firestore.");
+      debugPrint("🚀 [WebRTC] Offer publicada com sucesso no Firestore.");
     } catch (e) {
-      debugPrint("DEBUG ERROR: Erro ao escrever no Firebase: $e");
+      debugPrint("❌ [WebRTC] Erro ao atualizar documento do Firestore: $e");
     }
 
-    // 7. Ouvir Answer e Candidates do Robô
+    // 7. Ouvir as respostas (Signaling) sincronizadas do Firestore
     _signalingSubscription = _db
         .collection('robots')
         .doc(robotId)
@@ -132,69 +180,86 @@ class WebRTCService {
         .listen((snapshot) async {
           if (!snapshot.exists || _isDisposed) return;
           final data = snapshot.data()!;
-
-          // Processar Answer
           final session = data['webrtc_session'];
-          if (session != null &&
-              session['answer'] != null &&
-              _peerConnection?.getRemoteDescription() == null) {
-            await _peerConnection!.setRemoteDescription(
-              RTCSessionDescription(
-                session['answer']['sdp'],
-                session['answer']['type'],
-              ),
-            );
+
+          // A) PROCESSAR ANSWER (Apenas se ainda não foi trancada)
+          if (session != null && session['answer'] != null && !_answerSet) {
+            _answerSet = true; // Tranca imediatamente o loop de escuta
+            debugPrint("📥 [WebRTC] Answer do robô detetada. Aplicando RemoteDescription...");
+            
+            try {
+              await _peerConnection!.setRemoteDescription(
+                RTCSessionDescription(
+                  session['answer']['sdp'],
+                  session['answer']['type'],
+                ),
+              );
+              debugPrint("✅ [WebRTC] RemoteDescription definida! Injetando candidatos acumulados...");
+              await _flushPendingRobotCandidates();
+            } catch (e) {
+              debugPrint("❌ [WebRTC] Erro ao aplicar RemoteDescription: $e");
+              _answerSet = false; // Destranca em caso de falha crítica
+            }
           }
 
-          // Processar Candidates do Robô
+          // B) PROCESSAR CANDIDATOS ICE ENVIADOS PELO ROBÔ
           final List? robotCandidates = data['robot_candidates'];
           if (robotCandidates != null) {
             for (var c in robotCandidates) {
-              String candidateStr = c['candidate'];
-              if (!_processedCandidates.contains(candidateStr)) {
-                await _peerConnection!.addCandidate(
-                  RTCIceCandidate(
-                    candidateStr,
-                    c['sdpMid'],
-                    c['sdpMLineIndex'],
-                  ),
-                );
+              String candidateStr = c['candidate'] ?? '';
+              if (candidateStr.isNotEmpty && !_processedCandidates.contains(candidateStr)) {
                 _processedCandidates.add(candidateStr);
+                
+                RTCIceCandidate iceCandidate = RTCIceCandidate(
+                  candidateStr,
+                  c['sdpMid'] ?? '0',
+                  c['sdpMLineIndex'] ?? 0,
+                );
+
+                // Se a RemoteDescription já estiver ativa, injeta na hora; se não, mete em fila
+                if (_answerSet && _peerConnection?.getRemoteDescription() != null) {
+                  await _peerConnection!.addCandidate(iceCandidate);
+                } else {
+                  _pendingRobotCandidates.add(iceCandidate);
+                }
               }
             }
           }
         });
   }
 
+  // Despeja com segurança os candidatos guardados em cache assim que o canal remoto abrir
+  Future<void> _flushPendingRobotCandidates() async {
+    if (_pendingRobotCandidates.isEmpty) return;
+    debugPrint("📦 [WebRTC] Despejando ${_pendingRobotCandidates.length} candidatos do robô da fila de espera...");
+    for (var candidate in _pendingRobotCandidates) {
+      try {
+        await _peerConnection!.addCandidate(candidate);
+      } catch (e) {
+        debugPrint("⚠️ [WebRTC] Erro ao injetar candidato em espera: $e");
+      }
+    }
+    _pendingRobotCandidates.clear();
+  }
+
   void _requestControl() {
-    // Implementação da lógica de pedido de controle se necessário
-    debugPrint("Solicitando controle do robô...");
+    debugPrint("🕹️ [WebRTC] Controlo obtido. Conexão WebRTC operacional!");
   }
 
   void sendJoystick(double x, double y) {
-    if (isConnected && !_isDisposed) {
-      final msg = jsonEncode({
-        "x": double.parse(x.toStringAsFixed(2)),
-        "y": double.parse(y.toStringAsFixed(2)),
-      });
-      try {
-        _dataChannel!.send(RTCDataChannelMessage(msg));
-      } catch (e) {
-        debugPrint("Erro DataChannel: $e");
-      }
-    }
+  _pendingX = x;
+  _pendingY = y;
+
+  if (_sendLoop == null) {
+    _startSendLoop();
   }
+}
 
   void sendDrum(double value) {
-    if (isConnected && !_isDisposed) {
-      final msg = jsonEncode({
-        "drum": value,
-      });
-      try {
-        _dataChannel!.send(RTCDataChannelMessage(msg));
-      } catch (e) {
-        debugPrint("Erro Drum: $e");
-      }
+    _pendingDrum = value;
+
+    if (_sendLoop == null) {
+      _startSendLoop();
     }
   }
 
@@ -208,17 +273,14 @@ class WebRTCService {
         int? w, h;
 
         for (final report in stats) {
-          if (report.type == 'inbound-rtp' &&
-              report.values['kind'] == 'video') {
+          if (report.type == 'inbound-rtp' && report.values['kind'] == 'video') {
             fps = (report.values['framesPerSecond'] as num?)?.toDouble();
             w = (report.values['frameWidth'] as num?)?.toInt();
             h = (report.values['frameHeight'] as num?)?.toInt();
             jitter = (report.values['jitter'] as num?)?.toDouble();
 
-            final lost =
-                (report.values['packetsLost'] as num?)?.toDouble() ?? 0;
-            final received =
-                (report.values['packetsReceived'] as num?)?.toDouble() ?? 0;
+            final lost = (report.values['packetsLost'] as num?)?.toDouble() ?? 0;
+            final received = (report.values['packetsReceived'] as num?)?.toDouble() ?? 0;
             if (received + lost > 0) loss = (lost / (received + lost)) * 100;
           }
         }
@@ -227,9 +289,7 @@ class WebRTCService {
           _statsController.add({
             'frameRate': fps != null ? '${fps.toStringAsFixed(1)} fps' : '---',
             'resolution': (w != null && h != null) ? '${w}x${h}' : '---',
-            'latency': jitter != null
-                ? '${(jitter * 1000).toStringAsFixed(0)} ms'
-                : '---',
+            'latency': jitter != null ? '${(jitter * 1000).toStringAsFixed(0)} ms' : '---',
             'packetLoss': loss != null ? '${loss.toStringAsFixed(1)}%' : '---',
           });
         }
@@ -253,7 +313,8 @@ class WebRTCService {
     if (!_statsController.isClosed) _statsController.close();
     remoteRenderer.srcObject = null;
     _processedCandidates.clear();
+    _pendingRobotCandidates.clear();
 
-    debugPrint("WebRTCService Disposed.");
+    debugPrint("🔒 [WebRTCService] Recursos libertados com sucesso.");
   }
 }

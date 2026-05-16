@@ -1,7 +1,10 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
 import 'package:agromotion/models/battery_state.dart';
 import 'package:agromotion/widgets/glass_container.dart';
 import 'package:agromotion/widgets/statistics/mapshortcut_icon.dart';
-import 'package:flutter/material.dart';
 import 'package:agromotion/models/metric_data.dart';
 
 class RealtimePanel extends StatelessWidget {
@@ -22,7 +25,8 @@ class RealtimePanel extends StatelessWidget {
   }
 }
 
-// --- Battery Card ---
+// ---------------- BATTERY ----------------
+
 class _BatteryCard extends StatelessWidget {
   const _BatteryCard({required this.snapshot});
   final TelemetrySnapshot snapshot;
@@ -66,7 +70,8 @@ class _BatteryCard extends StatelessWidget {
   }
 }
 
-// --- System Card ---
+// ---------------- SYSTEM ----------------
+
 class _SystemCard extends StatelessWidget {
   const _SystemCard({required this.snapshot});
   final TelemetrySnapshot snapshot;
@@ -74,13 +79,15 @@ class _SystemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     const cpuColor = Color(0xFF42A5F5);
     const ramColor = Color(0xFF66BB6A);
+
     final tempColor = snapshot.systemTemperature > 70
         ? Colors.redAccent
         : snapshot.systemTemperature > 50
-        ? Colors.orangeAccent
-        : Colors.cyan;
+            ? Colors.orangeAccent
+            : Colors.cyan;
 
     return GlassContainer(
       padding: const EdgeInsets.all(16),
@@ -128,15 +135,85 @@ class _SystemCard extends StatelessWidget {
   }
 }
 
-// --- GPS Card (Atualizado com atalho para Mapa) ---
-class _GpsStatusCard extends StatelessWidget {
+// ---------------- GPS (COM CACHE) ----------------
+
+class _GpsStatusCard extends StatefulWidget {
   const _GpsStatusCard({required this.snapshot});
   final TelemetrySnapshot snapshot;
 
   @override
+  State<_GpsStatusCard> createState() => _GpsStatusCardState();
+}
+
+class _GpsStatusCardState extends State<_GpsStatusCard> {
+  String? _address;
+  double? _lastLat;
+  double? _lastLon;
+  bool _loading = false;
+
+  static const double _threshold = 0.0001; // ~11m
+
+  @override
+  void didUpdateWidget(covariant _GpsStatusCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _maybeUpdateAddress();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeUpdateAddress();
+  }
+
+  bool _hasMoved(double lat, double lon) {
+    if (_lastLat == null || _lastLon == null) return true;
+    return (lat - _lastLat!).abs() > _threshold ||
+        (lon - _lastLon!).abs() > _threshold;
+  }
+
+  Future<void> _maybeUpdateAddress() async {
+    final lat = widget.snapshot.gpsLatitude;
+    final lon = widget.snapshot.gpsLongitude;
+
+    if (!widget.snapshot.gpsIsValid) return;
+
+    if (!_hasMoved(lat, lon)) return;
+
+    setState(() {
+      _loading = true;
+    });
+
+    final url =
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1';
+
+    try {
+      final res = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'agromotion-app'},
+      );
+
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        _address = data['display_name'];
+        _lastLat = lat;
+        _lastLon = lon;
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final snapshot = widget.snapshot;
     final cs = Theme.of(context).colorScheme;
-    final gpsColor = snapshot.gpsIsValid ? const Color(0xFF66BB6A) : cs.error;
+
+    final gpsColor =
+        snapshot.gpsIsValid ? const Color(0xFF66BB6A) : cs.error;
 
     return GlassContainer(
       padding: const EdgeInsets.all(16),
@@ -158,16 +235,48 @@ class _GpsStatusCard extends StatelessWidget {
           const SizedBox(height: 12),
           const Divider(height: 1, color: Colors.white10),
           const SizedBox(height: 12),
-          // Pills de estado com Wrap para responsividade
+
+          if (snapshot.gpsIsValid)
+            Text(
+              _loading
+                  ? 'A obter morada...'
+                  : _address ?? 'Sem dados',
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.onSurface.withOpacity(0.7),
+              ),
+            ),
+
+          const SizedBox(height: 10),
+
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               _StatusPill(
+                icon: Icons.my_location,
+                label:
+                    'Lat: ${snapshot.gpsLatitude.toStringAsFixed(5)}',
+                color: gpsColor,
+              ),
+              _StatusPill(
+                icon: Icons.my_location,
+                label:
+                    'Lon: ${snapshot.gpsLongitude.toStringAsFixed(5)}',
+                color: gpsColor,
+              ),
+              _StatusPill(
+                icon: Icons.height,
+                label:
+                    '${snapshot.gpsAltitude.toStringAsFixed(1)} m',
+                color: gpsColor,
+              ),
+              _StatusPill(
                 icon: snapshot.robotMoving
                     ? Icons.directions_run_rounded
                     : Icons.pause_circle_outline_rounded,
-                label: snapshot.robotMoving ? 'Em movimento' : 'Parado',
+                label:
+                    snapshot.robotMoving ? 'Em movimento' : 'Parado',
                 color: snapshot.robotMoving
                     ? const Color(0xFF66BB6A)
                     : cs.onSurface.withAlpha(50),
@@ -180,13 +289,14 @@ class _GpsStatusCard extends StatelessWidget {
   }
 }
 
-// --- Widgets de Apoio (Helper Widgets) ---
+// ---------------- HELPERS ----------------
 
 class _CardHeader extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final String title;
   final Widget? trailing;
+
   const _CardHeader({
     required this.icon,
     required this.iconColor,
@@ -202,7 +312,8 @@ class _CardHeader extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           title,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          style:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
         const Spacer(),
         if (trailing != null) trailing!,
@@ -215,12 +326,18 @@ class _StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
   final IconData? icon;
-  const _StatusBadge({required this.label, required this.color, this.icon});
+
+  const _StatusBadge({
+    required this.label,
+    required this.color,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
@@ -253,6 +370,7 @@ class _PercentageBar extends StatelessWidget {
   final Color color;
   final String label;
   final ColorScheme cs;
+
   const _PercentageBar({
     required this.value,
     required this.color,
@@ -294,6 +412,7 @@ class _BarRow extends StatelessWidget {
   final String displayValue;
   final Color color;
   final ColorScheme cs;
+
   const _BarRow({
     required this.label,
     required this.value,
@@ -342,40 +461,11 @@ class _BarRow extends StatelessWidget {
   }
 }
 
-class _StatCell extends StatelessWidget {
-  final String label;
-  final String value;
-  final ColorScheme cs;
-  const _StatCell({required this.label, required this.value, required this.cs});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 8,
-              fontWeight: FontWeight.bold,
-              color: cs.onSurface.withOpacity(0.4),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StatusPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+
   const _StatusPill({
     required this.icon,
     required this.label,
@@ -385,12 +475,14 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
