@@ -10,9 +10,9 @@ A **Agromotion App** é o centro de controlo do ecossistema Agromotion. Desenvol
 
 ## Funcionalidades Principais
 
-* **Painel de Monitorização:** Visualização do estado atual do robô e níveis de ração.
-* **Gestão de Horários:** Agendamento flexível com suporte para múltiplos lembretes.
-* **Controlo Manual:** Interface para acionar o alimentador instantaneamente.
+* **Painel de Monitorização:** Visualização do estado atual do robô e níveis de bateria, localização.
+* **Gestão de Horários:** Agendamento flexível com suporte para múltiplos registos.
+* **Controlo Manual:** Interface para controlar e visualizar o robô.
 * **Notificações em Tempo Real:** Alertas via Firebase Cloud Messaging (FCM) sobre diversos casos.
 * **Segurança:** Autenticação via Email/Password ou Google Sign-In.
 
