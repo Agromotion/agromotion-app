@@ -23,7 +23,7 @@ A **Agromotion App** é o centro de controlo do ecossistema Agromotion. Desenvol
     * **Authentication:** Gestão de utilizadores.
     * **Cloud Firestore:** Base de dados NoSQL em tempo real para sincronização de horários.
     * **Cloud Messaging:** Notificações push.
-* **Plataformas Alvo:** Android, iOS e Windows.
+* **Plataformas Alvo:** Android, iOS e Browser.
 
 ---
 
