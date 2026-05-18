@@ -66,16 +66,19 @@ class _CameraScreenState extends State<CameraScreen> {
   // Lifecycle
   // ─────────────────────────────────────────
 
-  @override
-  void initState() {
-    super.initState();
-    _initRenderer();
-    _loadJoystickPreference();
-    _initializeWebRTC();
-    _listenToFirestoreTelemetry();
-    _startMovementHeartbeat();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeWebRTC());
-  }
+@override
+void initState() {
+  super.initState();
+
+  _loadJoystickPreference();
+  _listenToFirestoreTelemetry();
+  _startMovementHeartbeat();
+
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await _initRenderer();
+    await _initializeWebRTC();
+  });
+}
 
   void _subscribeToWebRTCStats() {
     _webrtcStatsSubscription?.cancel();
