@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/models/metric_data.dart';
+import 'package:agromotion/widgets/home/auto_mode_switch.dart';
 import 'package:agromotion/widgets/home/control_robot_button.dart';
 import 'package:agromotion/widgets/statistics/realtime_panel.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen>
     with AutomaticKeepAliveClientMixin {
   bool _isOnline = false;
   TelemetrySnapshot _realtime = const TelemetrySnapshot();
+  bool _isControllerActive = false;
   String get _robotId => AppConfig.robotId;
 
   StreamSubscription? _robotSubscription;
@@ -50,10 +52,17 @@ class _HomeScreenState extends State<HomeScreen>
           final data = snap.data()!;
           final status = data['status'] as Map<String, dynamic>? ?? {};
           final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
+          final control = data['control'] as Map<String, dynamic>? ?? {};
+
+          final activeControllerEmail =
+              control['active_controller_email'] as String?;
+          final isControllerActive =
+              activeControllerEmail != null && activeControllerEmail.isNotEmpty;
 
           setState(() {
             _isOnline = status['online'] ?? false;
             _realtime = TelemetrySnapshot.fromMap(telemetry);
+            _isControllerActive = isControllerActive;
           });
         });
   }
@@ -88,20 +97,40 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
 
-            // Botão de Meter em Automático
+            // Controles na parte inferior
             Positioned(
-              bottom: 110,
+              bottom: 100,
               left: 24,
               right: 24,
-              child: ControlRobotButton(),
-            ),
-
-            // Botão de Controlar Robô
-            Positioned(
-              bottom: 110,
-              left: 24,
-              right: 24,
-              child: ControlRobotButton(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Switch de Automático
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 1.0),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: AutoModeSwitch(
+                      isControllerActive: _isControllerActive,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Botão de Controlar Robô
+                  ControlRobotButton(),
+                ],
+              ),
             ),
           ],
         ),

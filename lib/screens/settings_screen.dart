@@ -3,6 +3,8 @@ import 'package:agromotion/widgets/settings/section_title.dart';
 import 'package:agromotion/widgets/settings/settings_tile.dart';
 import 'package:agromotion/screens/admins_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:agromotion/theme/app_theme.dart';
@@ -30,12 +32,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '0.0.0';
   String _buildNumber = '0';
   bool _joystickSwap = false;
+  bool _vibrationEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _loadPackageInfo();
     _loadJoystickSwap();
+    _loadVibrationSetting();
   }
 
   /// Carrega informações da build do pacote
@@ -55,6 +59,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadJoystickSwap() async {
     final swap = await _storageService.getJoystickSwap();
     setState(() => _joystickSwap = swap);
+  }
+
+  Future<void> _loadVibrationSetting() async {
+    final enabled = await _storageService.getVibrationEnabled();
+    setState(() => _vibrationEnabled = enabled);
   }
 
   Future<void> _handleUserManagement() async {
@@ -124,6 +133,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (isUserLoggedIn) ...[
                         const SectionTitle(title: 'Controlo'),
                         _buildJoystickSwapTile(),
+
+                        if (!kIsWeb) ...[
+                          const SizedBox(height: 32),
+                          const SectionTitle(title: 'Notificações & Alertas'),
+                          _buildVibrationTile(),
+                        ],
 
                         const SizedBox(height: 32),
 
@@ -215,6 +230,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ? "Joysticks trocados!"
                   : "Joysticks na posição padrão",
             );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildVibrationTile() {
+    return SettingsTile(
+      icon: Icons.vibration,
+      title: 'Vibração',
+      subtitle: const Text(
+        'Vibrar ao receber alertas e mostrar mensagens',
+        style: TextStyle(fontSize: 12),
+      ),
+      trailing: Switch(
+        value: _vibrationEnabled,
+        onChanged: (value) async {
+          await _storageService.setVibrationEnabled(value);
+          setState(() => _vibrationEnabled = value);
+          if (value) {
+            HapticFeedback.mediumImpact();
           }
         },
       ),

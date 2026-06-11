@@ -86,8 +86,8 @@ class _SystemCard extends StatelessWidget {
     final tempColor = snapshot.systemTemperature > 70
         ? Colors.redAccent
         : snapshot.systemTemperature > 50
-            ? Colors.orangeAccent
-            : Colors.cyan;
+        ? Colors.orangeAccent
+        : Colors.cyan;
 
     return GlassContainer(
       padding: const EdgeInsets.all(16),
@@ -124,7 +124,7 @@ class _SystemCard extends StatelessWidget {
           const SizedBox(height: 10),
           _StatusPill(
             icon: Icons.videocam_rounded,
-            label: '${snapshot.videoClientCount} visualizadores',
+            label: '${snapshot.videoClientCount} espectadores',
             color: snapshot.videoClientCount > 0
                 ? const Color(0xFF42A5F5)
                 : cs.onSurface.withOpacity(0.5),
@@ -212,8 +212,7 @@ class _GpsStatusCardState extends State<_GpsStatusCard> {
     final snapshot = widget.snapshot;
     final cs = Theme.of(context).colorScheme;
 
-    final gpsColor =
-        snapshot.gpsIsValid ? const Color(0xFF66BB6A) : cs.error;
+    final gpsColor = snapshot.gpsIsValid ? const Color(0xFF66BB6A) : cs.error;
 
     return GlassContainer(
       padding: const EdgeInsets.all(16),
@@ -238,9 +237,7 @@ class _GpsStatusCardState extends State<_GpsStatusCard> {
 
           if (snapshot.gpsIsValid)
             Text(
-              _loading
-                  ? 'A obter morada...'
-                  : _address ?? 'Sem dados',
+              _loading ? 'A obter morada...' : _address ?? 'Sem dados',
               style: TextStyle(
                 fontSize: 11,
                 color: cs.onSurface.withOpacity(0.7),
@@ -255,31 +252,13 @@ class _GpsStatusCardState extends State<_GpsStatusCard> {
             children: [
               _StatusPill(
                 icon: Icons.my_location,
-                label:
-                    'Lat: ${snapshot.gpsLatitude.toStringAsFixed(5)}',
+                label: 'Lat: ${snapshot.gpsLatitude.toStringAsFixed(5)}',
                 color: gpsColor,
               ),
               _StatusPill(
                 icon: Icons.my_location,
-                label:
-                    'Lon: ${snapshot.gpsLongitude.toStringAsFixed(5)}',
+                label: 'Lon: ${snapshot.gpsLongitude.toStringAsFixed(5)}',
                 color: gpsColor,
-              ),
-              _StatusPill(
-                icon: Icons.height,
-                label:
-                    '${snapshot.gpsAltitude.toStringAsFixed(1)} m',
-                color: gpsColor,
-              ),
-              _StatusPill(
-                icon: snapshot.robotMoving
-                    ? Icons.directions_run_rounded
-                    : Icons.pause_circle_outline_rounded,
-                label:
-                    snapshot.robotMoving ? 'Em movimento' : 'Parado',
-                color: snapshot.robotMoving
-                    ? const Color(0xFF66BB6A)
-                    : cs.onSurface.withAlpha(50),
               ),
             ],
           ),
@@ -312,8 +291,7 @@ class _CardHeader extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           title,
-          style:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
         const Spacer(),
         if (trailing != null) trailing!,
@@ -327,17 +305,12 @@ class _StatusBadge extends StatelessWidget {
   final Color color;
   final IconData? icon;
 
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-    this.icon,
-  });
+  const _StatusBadge({required this.label, required this.color, this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
@@ -475,8 +448,7 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),

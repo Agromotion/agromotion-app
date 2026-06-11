@@ -10,8 +10,8 @@ class AppLogger {
       printEmojis: true, // Emojis para cada nível
       dateTimeFormat: DateTimeFormat.dateAndTime, // Formato da data/hora
     ),
-    // Filtro para garantir que logs de debug não saiam em produção
-    filter: DevelopmentFilter(),
+    // ProductionFilter garante que os logs aparecem no modo Profile/Release no Browser
+    filter: ProductionFilter(),
   );
 
   static void debug(String message) => _logger.d(message);

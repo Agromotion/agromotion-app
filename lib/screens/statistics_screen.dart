@@ -78,13 +78,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           if (!mounted) return;
 
           setState(() {
-            // 1. Atualiza o histórico (o que faz o gráfico mexer)
-            _history = Map<String, List<FlSpot>>.from(res['history'] ?? {});
+            // 1. Receber os dados brutos da base de dados
+            final rawHistory = Map<String, List<FlSpot>>.from(
+              res['history'] ?? {},
+            );
 
-            final tempSpots = _history['temperature'] ?? [];
-            final cpuSpots = _history['cpu'] ?? [];
+            final tempSpots = rawHistory['temperature'] ?? [];
+            final cpuSpots = rawHistory['cpu'] ?? [];
 
-            // 2. RECALCULA na hora com os dados que acabaram de chegar na Stream
+            // 2. RECALCULA os resumos com a lista GIGANTE REAL (para precisão de 100% no min e max)
             _summary = {
               'maxTemp': tempSpots.isEmpty
                   ? '0'
@@ -112,6 +114,20 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               'docCount': res['docCount']?.toString() ?? '0',
               'movingPct': res['movingPct']?.toString() ?? '0',
             };
+
+            // 3. Amostragem (Downsampling) para proteger o CanvasKit na Web contra Stack Overflow
+            _history = rawHistory.map((key, spots) {
+              const int maxPoints =
+                  60; // Número leve e fluído para a renderização Web
+              if (spots.length <= maxPoints) return MapEntry(key, spots);
+
+              final step = spots.length / maxPoints;
+              final sampled = <FlSpot>[];
+              for (double i = 0; i < spots.length; i += step) {
+                sampled.add(spots[i.toInt()]);
+              }
+              return MapEntry(key, sampled);
+            });
 
             if (firstEmission) {
               _isLoading = false;
@@ -307,8 +323,8 @@ class _ReportsButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: cs.primaryContainer.withOpacity(0.2),
-          border: Border.all(color: cs.primary.withOpacity(0.3)),
+          color: cs.primaryContainer.withAlpha(20),
+          border: Border.all(color: cs.primary.withAlpha(30)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(

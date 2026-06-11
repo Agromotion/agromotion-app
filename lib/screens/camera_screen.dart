@@ -5,10 +5,12 @@ import 'package:agromotion/widgets/glass_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/theme/app_theme.dart';
+import 'package:agromotion/utils/app_logger.dart';
 import 'package:agromotion/services/webrtc_service.dart';
 import 'package:agromotion/services/storage_service.dart';
 import 'package:agromotion/services/media_service.dart';
@@ -27,7 +29,8 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState extends State<CameraScreen>
+    with WidgetsBindingObserver {
   // — Renderers & Services —
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   final StorageService _storageService = StorageService();
@@ -37,7 +40,6 @@ class _CameraScreenState extends State<CameraScreen> {
   StreamSubscription? _webrtcStatsSubscription;
 
   // — UI State —
-  bool _isLoading = true;
   bool _showDebug = false;
   bool _isFullScreen = false;
   bool _hasActiveStream = false;
@@ -66,19 +68,20 @@ class _CameraScreenState extends State<CameraScreen> {
   // Lifecycle
   // ─────────────────────────────────────────
 
-@override
-void initState() {
-  super.initState();
+  @override
+  void initState() {
+    super.initState();
 
-  _loadJoystickPreference();
-  _listenToFirestoreTelemetry();
-  _startMovementHeartbeat();
+    WidgetsBinding.instance.addObserver(this);
+    _loadJoystickPreference();
+    _listenToFirestoreTelemetry();
+    _startMovementHeartbeat();
 
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    await _initRenderer();
-    await _initializeWebRTC();
-  });
-}
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _initRenderer();
+      await _initializeWebRTC();
+    });
+  }
 
   void _subscribeToWebRTCStats() {
     _webrtcStatsSubscription?.cancel();
@@ -95,6 +98,8 @@ void initState() {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cleanupConnection();
     _streamCheckTimer?.cancel();
     _telemetrySubscription?.cancel();
     _movementHeartbeat?.cancel();
@@ -106,12 +111,66 @@ void initState() {
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Garante que o controlo e WebRTC são limpos se o utilizador minimizar ou fechar a app de repente
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      AppLogger.info(
+        "[AppLifecycle] App em background/fechada. A limpar conexão...",
+      );
+      _cleanupConnection();
+    }
+  }
+
+  Future<void> _cleanupConnection() async {
+    try {
+      final myEmail = AuthService().currentUser?.email;
+      final robotRef = FirebaseFirestore.instance
+          .collection('robots')
+          .doc(_robotId);
+
+      if (myEmail != null) {
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+          final snap = await transaction.get(robotRef);
+          if (!snap.exists) return;
+
+          final data = snap.data()!;
+          final control = data['control'] as Map<String, dynamic>? ?? {};
+          final updates = <String, dynamic>{};
+          bool needsUpdate = false;
+
+          if (control['active_controller_email'] == myEmail) {
+            updates['control.active_controller_email'] = FieldValue.delete();
+            needsUpdate = true;
+          }
+
+          final viewerQueue = control['viewer_queue'];
+          if (viewerQueue is List && viewerQueue.contains(myEmail)) {
+            updates['control.viewer_queue'] = FieldValue.arrayRemove([myEmail]);
+            needsUpdate = true;
+          }
+
+          if (needsUpdate) {
+            transaction.update(robotRef, updates);
+          }
+        });
+      }
+    } catch (e) {
+      AppLogger.error("Erro ao limpar estado de WebRTC", e);
+    }
+  }
+
   // ─────────────────────────────────────────
   // Initialization
   // ─────────────────────────────────────────
 
   Future<void> _initRenderer() async {
     await _remoteRenderer.initialize();
+
+    // Forçar silêncio contorna as políticas restritas de Autoplay nos Browsers (Chrome/Safari)
+    _remoteRenderer.muted = true;
+
     // Backup callback — nem sempre fiável no flutter_webrtc,
     // mantemos como redundância ao polling em _startStreamCheck.
     _remoteRenderer.onFirstFrameRendered = () {
@@ -145,7 +204,6 @@ void initState() {
     if (!mounted) return;
 
     setState(() {
-      _isLoading = true;
       _hasActiveStream = false;
     });
 
@@ -169,12 +227,11 @@ void initState() {
       await _webrtcService!.connect().timeout(const Duration(seconds: 15));
 
       if (mounted) {
-        setState(() => _isLoading = false);
         _startStreamCheck();
         _subscribeToWebRTCStats();
       }
     } catch (e) {
-      debugPrint("Erro na conexão: $e");
+      AppLogger.error("Erro na conexão WebRTC", e);
       // Em caso de erro (timeout ou rede), tenta de novo automaticamente após 5 segundos
       if (mounted) {
         Future.delayed(const Duration(seconds: 5), _initializeWebRTC);
@@ -356,38 +413,48 @@ void initState() {
           flex: 4,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                children: [
-                  VideoFeedDisplay(
-                    renderer: _remoteRenderer,
-                    isFullScreen: false,
-                  ),
+            child: Builder(
+              builder: (context) {
+                final videoStack = Stack(
+                  children: [
+                    VideoFeedDisplay(
+                      renderer: _remoteRenderer,
+                      isFullScreen: false,
+                    ),
 
-                  _buildStreamLoadingOverlay(isFullScreen: false),
+                    _buildStreamLoadingOverlay(isFullScreen: false),
 
-                  // Drum Control só aparece com VÍDEO + PERMISSÃO
-                  if (_hasActiveStream && _canControl)
-                    Positioned(
-                      right: 15,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: DrumOverlay(
-                          onChanged: (val) => _webrtcService?.sendDrum(val),
+                    // Drum Control só aparece com VÍDEO + PERMISSÃO
+                    if (_hasActiveStream && _canControl)
+                      Positioned(
+                        right: 15,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: DrumOverlay(
+                            onChanged: (val) => _webrtcService?.sendDrum(val),
+                          ),
                         ),
                       ),
-                    ),
 
-                  if (_showDebug)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: StreamDebugPanel(stats: _streamStats),
-                    ),
-                ],
-              ),
+                    if (_showDebug)
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: StreamDebugPanel(stats: _streamStats),
+                      ),
+                  ],
+                );
+
+                // Na Web o CanvasKit tem problemas a aplicar ClipRRect em cima de tags <video>.
+                // Removemos o clip se estivermos no Browser para impedir o ecrã preto.
+                return kIsWeb
+                    ? videoStack
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: videoStack,
+                      );
+              },
             ),
           ),
         ),

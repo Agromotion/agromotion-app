@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:agromotion/services/storage_service.dart';
 
 class AgroSnackbar {
   static void show(
@@ -84,8 +85,19 @@ class _GlassSnackbarWidgetState extends State<_GlassSnackbarWidget>
     ).animate(curve);
 
     _controller.forward();
-    HapticFeedback.lightImpact();
+    _triggerVibration();
     _setAutoDismiss();
+  }
+
+  Future<void> _triggerVibration() async {
+    final isVibrationEnabled = await StorageService().getVibrationEnabled();
+    if (isVibrationEnabled) {
+      if (widget.isError) {
+        HapticFeedback.heavyImpact();
+      } else {
+        HapticFeedback.mediumImpact();
+      }
+    }
   }
 
   void _setAutoDismiss() async {

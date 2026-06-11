@@ -1,6 +1,7 @@
 library;
 
 import 'package:agromotion/utils/app_logger.dart';
+import 'package:agromotion/services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -97,7 +98,7 @@ class AuthService {
       if (!authorized) {
         await logout();
         isWhitelisting.value = false;
-        return "Acesso negado: Este utilizador não está autorizado.";
+        return "Acesso negado.";
       }
 
       isWhitelisting.value = false;
@@ -152,6 +153,7 @@ class AuthService {
 
   Future<void> logout() async {
     try {
+      await NotificationService().removeToken();
       await _auth.signOut();
       await _googleSignIn.signOut();
     } catch (e) {

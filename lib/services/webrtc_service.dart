@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:agromotion/config/app_config.dart';
 import 'package:agromotion/services/auth_service.dart';
+import 'package:agromotion/utils/app_logger.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -52,30 +53,34 @@ class WebRTCService {
 
       try {
         if (_pendingDrum != null) {
-          _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
-            "drum": _pendingDrum,
-          })));
+          _dataChannel!.send(
+            RTCDataChannelMessage(jsonEncode({"drum": _pendingDrum})),
+          );
           _pendingDrum = null;
           return;
         }
 
         if (_pendingX != null || _pendingY != null) {
-          _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
-            "x": double.parse((_pendingX ?? 0).toStringAsFixed(2)),
-            "y": double.parse((_pendingY ?? 0).toStringAsFixed(2)),
-          })));
+          _dataChannel!.send(
+            RTCDataChannelMessage(
+              jsonEncode({
+                "x": double.parse((_pendingX ?? 0).toStringAsFixed(2)),
+                "y": double.parse((_pendingY ?? 0).toStringAsFixed(2)),
+              }),
+            ),
+          );
 
           _pendingX = null;
           _pendingY = null;
         }
       } catch (e) {
-        debugPrint("[DataChannel] send loop error: $e");
+        AppLogger.error("[DataChannel] send loop error", e);
       }
     });
   }
 
   Future<void> connect() async {
-    debugPrint("TESTE NOVO WEBRTC SERVICE 123");
+    AppLogger.info("A INICIAR WEBRTC SERVICE...");
     if (_isDisposed || _isConnecting || isConnected) return;
 
     _isConnecting = true;
@@ -92,15 +97,15 @@ class WebRTCService {
           "urls": [
             "turn:openrelay.metered.ca:80",
             "turn:openrelay.metered.ca:443",
-            "turn:openrelay.metered.ca:443?transport=tcp"
+            "turn:openrelay.metered.ca:443?transport=tcp",
           ],
           "username": "openrelayproject",
-          "credential": "openrelayproject"
-        }
+          "credential": "openrelayproject",
+        },
       ],
       "sdpSemantics": "unified-plan",
       "iceCandidatePoolSize": 10,
-      "iceTransportPolicy": "all"
+      "iceTransportPolicy": "all",
     };
 
     try {
@@ -110,21 +115,40 @@ class WebRTCService {
         ..ordered = false
         ..maxRetransmits = 0;
 
-      _dataChannel =
-          await _peerConnection!.createDataChannel("commands", dcInit);
+      _dataChannel = await _peerConnection!.createDataChannel(
+        "commands",
+        dcInit,
+      );
 
-      _peerConnection!.onTrack = (event) {
+      _peerConnection!.onTrack = (event) async {
         debugPrint("[WebRTC] Track de video recebida do robo");
         if (event.track.kind == 'video' && !_isDisposed) {
-          remoteRenderer.srcObject = event.streams[0];
+          if (event.streams.isNotEmpty) {
+            remoteRenderer.srcObject = event.streams[0];
+          } else {
+            // Fallback obrigatório para Web, onde event.streams ocasionalmente vem vazio
+            debugPrint(
+              "[WebRTC] event.streams vazio. A aplicar fallback stream.",
+            );
+            remoteRenderer.srcObject ??= await createLocalMediaStream(
+              'remote_video_fallback',
+            );
+            remoteRenderer.srcObject!.addTrack(event.track);
+          }
         }
       };
 
       _peerConnection!.onConnectionState = (state) {
-        debugPrint("[WebRTC] Connection State alterado para: $state");
+        AppLogger.info("[WebRTC] Connection State alterado para: $state");
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
           _requestControl();
           _startStatsCollection();
+        } else if (state ==
+                RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+            state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+            state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+          AppLogger.warning("[WebRTC] Conexão perdida: $state");
+          _cleanupFirebaseSession();
         }
       };
 
@@ -162,65 +186,65 @@ class WebRTCService {
         'last_handshake': FieldValue.serverTimestamp(),
       });
 
-      debugPrint("[WebRTC] Offer publicada com sucesso no Firestore");
+      AppLogger.info("[WebRTC] Offer publicada com sucesso no Firestore");
 
       _signalingSubscription = _db
           .collection('robots')
           .doc(robotId)
           .snapshots()
           .listen((snapshot) async {
-        if (!snapshot.exists || _isDisposed) return;
+            if (!snapshot.exists || _isDisposed) return;
 
-        final data = snapshot.data()!;
-        final session = data['webrtc_session'];
+            final data = snapshot.data()!;
+            final session = data['webrtc_session'];
 
-        if (session != null && session['answer'] != null && !_answerSet) {
-          _answerSet = true;
-          debugPrint("[WebRTC] Answer do robo detetada");
+            if (session != null && session['answer'] != null && !_answerSet) {
+              _answerSet = true;
+              AppLogger.info("[WebRTC] Answer do robô detetada");
 
-          try {
-            await _peerConnection!.setRemoteDescription(
-              RTCSessionDescription(
-                session['answer']['sdp'],
-                session['answer']['type'],
-              ),
-            );
+              try {
+                await _peerConnection!.setRemoteDescription(
+                  RTCSessionDescription(
+                    session['answer']['sdp'],
+                    session['answer']['type'],
+                  ),
+                );
 
-            debugPrint("[WebRTC] RemoteDescription definida");
-            await _flushPendingRobotCandidates();
-          } catch (e) {
-            debugPrint("[WebRTC] Erro ao aplicar RemoteDescription: $e");
-            _answerSet = false;
-          }
-        }
-
-        final List? robotCandidates = data['robot_candidates'];
-        if (robotCandidates != null) {
-          for (var c in robotCandidates) {
-            String candidateStr = c['candidate'] ?? '';
-
-            if (candidateStr.isNotEmpty &&
-                !_processedCandidates.contains(candidateStr)) {
-              _processedCandidates.add(candidateStr);
-
-              RTCIceCandidate iceCandidate = RTCIceCandidate(
-                candidateStr,
-                c['sdpMid'] ?? '0',
-                c['sdpMLineIndex'] ?? 0,
-              );
-
-              if (_answerSet &&
-                  _peerConnection?.getRemoteDescription() != null) {
-                await _peerConnection!.addCandidate(iceCandidate);
-              } else {
-                _pendingRobotCandidates.add(iceCandidate);
+                AppLogger.info("[WebRTC] RemoteDescription definida");
+                await _flushPendingRobotCandidates();
+              } catch (e) {
+                AppLogger.error("[WebRTC] Erro ao aplicar RemoteDescription", e);
+                _answerSet = false;
               }
             }
-          }
-        }
-      });
+
+            final List? robotCandidates = data['robot_candidates'];
+            if (robotCandidates != null) {
+              for (var c in robotCandidates) {
+                String candidateStr = c['candidate'] ?? '';
+
+                if (candidateStr.isNotEmpty &&
+                    !_processedCandidates.contains(candidateStr)) {
+                  _processedCandidates.add(candidateStr);
+
+                  RTCIceCandidate iceCandidate = RTCIceCandidate(
+                    candidateStr,
+                    c['sdpMid'] ?? '0',
+                    c['sdpMLineIndex'] ?? 0,
+                  );
+
+                  if (_answerSet &&
+                      _peerConnection?.getRemoteDescription() != null) {
+                    await _peerConnection!.addCandidate(iceCandidate);
+                  } else {
+                    _pendingRobotCandidates.add(iceCandidate);
+                  }
+                }
+              }
+            }
+          });
     } catch (e) {
-      debugPrint("[WebRTC] Erro na conexao: $e");
+      AppLogger.error("[WebRTC] Erro na conexão", e);
     } finally {
       _isConnecting = false;
     }
@@ -229,7 +253,7 @@ class WebRTCService {
   Future<void> _flushPendingRobotCandidates() async {
     if (_pendingRobotCandidates.isEmpty) return;
 
-    debugPrint(
+    AppLogger.info(
       "[WebRTC] A inserir ${_pendingRobotCandidates.length} candidatos pendentes",
     );
 
@@ -237,7 +261,7 @@ class WebRTCService {
       try {
         await _peerConnection!.addCandidate(candidate);
       } catch (e) {
-        debugPrint("[WebRTC] Erro ao inserir candidato pendente: $e");
+        AppLogger.error("[WebRTC] Erro ao inserir candidato pendente", e);
       }
     }
 
@@ -245,7 +269,7 @@ class WebRTCService {
   }
 
   void _requestControl() {
-    debugPrint("[WebRTC] Controlo obtido. Conexao WebRTC operacional");
+    AppLogger.info("[WebRTC] Controlo obtido. Conexão WebRTC operacional");
   }
 
   void sendJoystick(double x, double y) {
@@ -303,16 +327,36 @@ class WebRTCService {
           _statsController.add({
             'frameRate': fps != null ? '${fps.toStringAsFixed(1)} fps' : '---',
             'resolution': (w != null && h != null) ? '${w}x$h' : '---',
-            'latency':
-                jitter != null ? '${(jitter * 1000).toStringAsFixed(0)} ms' : '---',
-            'packetLoss':
-                loss != null ? '${loss.toStringAsFixed(1)}%' : '---',
+            'latency': jitter != null
+                ? '${(jitter * 1000).toStringAsFixed(0)} ms'
+                : '---',
+            'packetLoss': loss != null ? '${loss.toStringAsFixed(1)}%' : '---',
           });
         }
       } catch (e) {
-        debugPrint("[WebRTC] Stats error: $e");
+        AppLogger.error("[WebRTC] Stats error", e);
       }
     });
+  }
+
+  Future<void> _cleanupFirebaseSession() async {
+    try {
+      final email = userEmail;
+      if (email == null) return;
+
+      await _db.collection('robots').doc(robotId).update({
+        // Remove viewer from queue
+        'control.viewer_queue': FieldValue.arrayRemove([email]),
+        'app_candidates': [],
+        'robot_candidates': [],
+        'webrtc_session': {'offer': null, 'answer': null},
+        'control.last_handshake_email': FieldValue.delete(),
+      });
+
+      AppLogger.info("[WebRTC] Firebase session limpa para $email");
+    } catch (e) {
+      AppLogger.error("[WebRTC] Erro ao limpar session Firebase", e);
+    }
   }
 
   void dispose() {
@@ -337,6 +381,9 @@ class WebRTCService {
     _processedCandidates.clear();
     _pendingRobotCandidates.clear();
 
-    debugPrint("[WebRTCService] Recursos libertados com sucesso");
+    // Cleanup Firebase ANTES de terminar completamente
+    _cleanupFirebaseSession();
+
+    AppLogger.info("[WebRTCService] Recursos libertados com sucesso");
   }
 }
