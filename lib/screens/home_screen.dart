@@ -25,6 +25,9 @@ class _HomeScreenState extends State<HomeScreen>
   String get _robotId => AppConfig.robotId;
 
   StreamSubscription? _robotSubscription;
+  Timer? _heartbeatTimer;
+  Timestamp? _lastHeartbeat;
+  DateTime? _lastHeartbeatLocalTime;
 
   @override
   bool get wantKeepAlive => true;
@@ -38,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _robotSubscription?.cancel();
+    _heartbeatTimer?.cancel();
     super.dispose();
   }
 
@@ -51,20 +55,62 @@ class _HomeScreenState extends State<HomeScreen>
 
           final data = snap.data()!;
           final status = data['status'] as Map<String, dynamic>? ?? {};
-          final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
           final control = data['control'] as Map<String, dynamic>? ?? {};
+
+          // Cria um map mutável e injeta a contagem de clientes vinda do 'status'
+          final telemetry = Map<String, dynamic>.from(
+            data['telemetry'] as Map<String, dynamic>? ?? {},
+          );
+          telemetry['video_client_count'] = status['video_client_count'] ?? 0;
 
           final activeControllerEmail =
               control['active_controller_email'] as String?;
           final isControllerActive =
               activeControllerEmail != null && activeControllerEmail.isNotEmpty;
 
+          bool isOnline = status['online'] ?? false;
+          final newHeartbeat = telemetry['timestamp'] as Timestamp?;
+
+          // Se recebemos um timestamp novo, guardamos a nossa HORA LOCAL do telemóvel
+          if (newHeartbeat != null && newHeartbeat != _lastHeartbeat) {
+            _lastHeartbeat = newHeartbeat;
+            _lastHeartbeatLocalTime = DateTime.now();
+          }
+
+          // 1. Verificação passiva a cada snapshot (Garante a verificação mal a app é iniciada)
+          if (_lastHeartbeatLocalTime != null && isOnline) {
+            final diff = DateTime.now()
+                .difference(_lastHeartbeatLocalTime!)
+                .inSeconds;
+            if (diff > 120) {
+              isOnline = false;
+              FirebaseFirestore.instance
+                  .collection('robots')
+                  .doc(_robotId)
+                  .update({'status.online': false});
+            }
+          }
+
           setState(() {
-            _isOnline = status['online'] ?? false;
+            _isOnline = isOnline;
             _realtime = TelemetrySnapshot.fromMap(telemetry);
             _isControllerActive = isControllerActive;
           });
         });
+
+    // 2. Verificação ativa em loop (Para detetar falhas de energia em tempo real quando o Firebase para de receber atualizações)
+    _heartbeatTimer ??= Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted || !_isOnline || _lastHeartbeatLocalTime == null) return;
+      final diff = DateTime.now()
+          .difference(_lastHeartbeatLocalTime!)
+          .inSeconds;
+      if (diff > 120) {
+        setState(() => _isOnline = false);
+        FirebaseFirestore.instance.collection('robots').doc(_robotId).update({
+          'status.online': false,
+        });
+      }
+    });
   }
 
   @override
@@ -128,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   const SizedBox(height: 12),
                   // Botão de Controlar Robô
-                  ControlRobotButton(),
+                  const ControlRobotButton(),
                 ],
               ),
             ),

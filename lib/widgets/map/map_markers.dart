@@ -132,7 +132,7 @@ class _RobotMarkerPainter extends CustomPainter {
     );
 
     // ── 2. Directional arrow sector ──────────────────────────────────────────
-    if (headingRad != null) {
+    if (headingRad != null && headingRad!.isFinite) {
       final sectorPaint = Paint()
         ..color = color.withAlpha(220)
         ..style = PaintingStyle.fill;

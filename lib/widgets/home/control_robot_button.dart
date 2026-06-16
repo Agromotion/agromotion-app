@@ -17,6 +17,7 @@ class ControlRobotButton extends StatefulWidget {
 class _ControlRobotButtonState extends State<ControlRobotButton> {
   late FirebaseFirestore _firestore;
   bool _isAutoModeOn = false;
+  bool _isOnline = false;
   String get _robotId => AppConfig.robotId;
   StreamSubscription? _autoModeSubscription;
 
@@ -44,15 +45,17 @@ class _ControlRobotButtonState extends State<ControlRobotButton> {
           final data = snap.data()!;
           final statusMap = data['status'] as Map<String, dynamic>? ?? {};
           final isAutoMode = statusMap['autoMode'] ?? false;
+          final isOnline = statusMap['online'] ?? false;
 
           setState(() {
             _isAutoModeOn = isAutoMode;
+            _isOnline = isOnline;
           });
         });
   }
 
   void _handleButtonPress() {
-    if (_isAutoModeOn) {
+    if (_isAutoModeOn || !_isOnline) {
       AgroSnackbar.show(
         context,
         message: 'Desative o modo automático para controlar o robô',
@@ -72,13 +75,15 @@ class _ControlRobotButtonState extends State<ControlRobotButton> {
     final cs = Theme.of(context).colorScheme;
     final customColors = Theme.of(context).extension<AppColorsExtension>()!;
 
+    final isDisabled = _isAutoModeOn || !_isOnline;
+
     return GestureDetector(
-      onTap: _isAutoModeOn ? null : _handleButtonPress,
+      onTap: isDisabled ? null : _handleButtonPress,
       child: Container(
         height: 65,
         width: double.infinity,
         decoration: BoxDecoration(
-          gradient: _isAutoModeOn
+          gradient: isDisabled
               ? LinearGradient(
                   colors: [Colors.grey.shade400, Colors.grey.shade600],
                   begin: Alignment.topLeft,
@@ -88,7 +93,7 @@ class _ControlRobotButtonState extends State<ControlRobotButton> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: _isAutoModeOn
+              color: isDisabled
                   ? Colors.grey.withAlpha(20)
                   : cs.primary.withAlpha(30),
               blurRadius: 15,
@@ -100,7 +105,7 @@ class _ControlRobotButtonState extends State<ControlRobotButton> {
           child: Text(
             'CONDUZIR',
             style: TextStyle(
-              color: _isAutoModeOn ? Colors.grey.shade300 : Colors.white,
+              color: isDisabled ? Colors.grey.shade300 : Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,

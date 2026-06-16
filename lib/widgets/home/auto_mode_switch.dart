@@ -18,6 +18,7 @@ class _AutoModeSwitchState extends State<AutoModeSwitch> {
   late FirebaseFirestore _firestore;
   bool _isAutoModeOn = false;
   bool _isLoading = false;
+  bool _isOnline = false;
   String get _robotId => AppConfig.robotId;
   StreamSubscription? _autoModeSubscription;
 
@@ -45,9 +46,11 @@ class _AutoModeSwitchState extends State<AutoModeSwitch> {
           final data = snap.data()!;
           final statusMap = data['status'] as Map<String, dynamic>? ?? {};
           final isAutoMode = statusMap['autoMode'] ?? false;
+          bool isOnline = statusMap['online'] ?? false;
 
           setState(() {
             _isAutoModeOn = isAutoMode;
+            _isOnline = isOnline;
           });
         });
   }
@@ -106,7 +109,7 @@ class _AutoModeSwitchState extends State<AutoModeSwitch> {
     // Simplificado: se estiver a carregar ou se o controller estiver ativo, desativa o switch
     // Mas se o switch já estiver ligado (true), permitimos desligar mesmo com o controller ativo,
     // ou mantemos bloqueado conforme a sua regra de negócio.
-    final isDisabled = widget.isControllerActive || _isLoading;
+    final isDisabled = widget.isControllerActive || _isLoading || !_isOnline;
 
     return Row(
       children: [

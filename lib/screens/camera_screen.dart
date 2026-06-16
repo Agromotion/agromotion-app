@@ -168,9 +168,6 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> _initRenderer() async {
     await _remoteRenderer.initialize();
 
-    // Forçar silêncio contorna as políticas restritas de Autoplay nos Browsers (Chrome/Safari)
-    _remoteRenderer.muted = true;
-
     // Backup callback — nem sempre fiável no flutter_webrtc,
     // mantemos como redundância ao polling em _startStreamCheck.
     _remoteRenderer.onFirstFrameRendered = () {
@@ -188,12 +185,20 @@ class _CameraScreenState extends State<CameraScreen>
   /// os primeiros frames chegam — mais fiável que onFirstFrameRendered.
   void _startStreamCheck() {
     _streamCheckTimer?.cancel();
+    int attempts = 0;
     _streamCheckTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
       if (!mounted) {
         _streamCheckTimer?.cancel();
         return;
       }
-      if (_remoteRenderer.videoWidth > 0 && _remoteRenderer.videoHeight > 0) {
+      attempts++;
+
+      final hasDimensions =
+          _remoteRenderer.videoWidth > 0 && _remoteRenderer.videoHeight > 0;
+
+      // Na Web, o flutter_webrtc por vezes não reporta dimensões ou onFirstFrameRendered.
+      // Usamos um fallback de ~3 segundos (10 tentativas) para forçar o ecrã a abrir.
+      if (hasDimensions || (kIsWeb && attempts > 10)) {
         setState(() => _hasActiveStream = true);
         _streamCheckTimer?.cancel();
       }
@@ -253,19 +258,26 @@ class _CameraScreenState extends State<CameraScreen>
           final data = snap.data()!;
           final telemetry = data['telemetry'] as Map<String, dynamic>? ?? {};
           final control = data['control'] as Map<String, dynamic>? ?? {};
+          final status = data['status'] as Map<String, dynamic>? ?? {};
           final activeEmail = control['active_controller_email'] as String?;
           final myEmail = AuthService().currentUser?.email;
+          bool isOnline = status['online'] ?? false;
 
           setState(() {
             _activeControllerEmail = activeEmail;
-            _canControl = activeEmail == null || activeEmail == myEmail;
+            _canControl =
+                (activeEmail == null || activeEmail == myEmail) && isOnline;
             _streamStats['cpu'] = "${telemetry['system_cpu'] ?? 0}%";
             _streamStats['temp'] = "${telemetry['system_temperature'] ?? 0}°C";
             _streamStats['battery'] =
                 "${telemetry['battery_percentage'] ?? 0}%";
-            _streamStats['status'] = _webrtcService?.isConnected ?? false
-                ? 'Online'
-                : 'A Conectar...';
+            if (!isOnline) {
+              _streamStats['status'] = 'Offline';
+            } else {
+              _streamStats['status'] = _webrtcService?.isConnected ?? false
+                  ? 'Online'
+                  : 'A Conectar...';
+            }
           });
         });
   }
@@ -370,12 +382,10 @@ class _CameraScreenState extends State<CameraScreen>
             body: _isFullScreen
                 ? _buildFullScreenLayout()
                 : SafeArea(
-                    child: SingleChildScrollView(
-                      physics: const NeverScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height:
-                            MediaQuery.of(context).size.height -
-                            MediaQuery.of(context).padding.top,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => SizedBox(
+                        height: constraints.maxHeight,
+                        width: constraints.maxWidth,
                         child: _buildStandardLayout(),
                       ),
                     ),
@@ -687,49 +697,84 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
+  Widget _buildLockedBannerContent() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.lock, color: Colors.orange, size: 18),
+        const SizedBox(width: 10),
+        Text(
+          "Controlo ocupado por: ${_activeControllerEmail ?? 'outro utilizador'}",
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Banner mostrado em fullscreen quando o controlo está ocupado.
   Widget _buildControlLockedBanner() {
+    if (kIsWeb) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(
+            215,
+          ), // Escuro semi-transparente (~0.85 opacity)
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.orange.withAlpha(128)),
+        ),
+        child: _buildLockedBannerContent(),
+      );
+    }
+
     return GlassContainer(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       borderRadius: 15,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.lock, color: Colors.orange, size: 18),
-          const SizedBox(width: 10),
-          Text(
-            "Controlo ocupado por: ${_activeControllerEmail ?? 'outro utilizador'}",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
+      child: _buildLockedBannerContent(),
+    );
+  }
+
+  Widget _buildBatteryContent(ColorScheme colorScheme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.battery_std, color: colorScheme.primary, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          _streamStats['battery'],
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildBatteryWidget() {
     final colorScheme = Theme.of(context).colorScheme;
+
+    if (kIsWeb) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(160), // ~0.65 opacity
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: colorScheme.primary.withAlpha(80)),
+        ),
+        child: _buildBatteryContent(colorScheme),
+      );
+    }
+
     return GlassContainer(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       borderRadius: 20,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.battery_std, color: colorScheme.primary, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            _streamStats['battery'],
-            style: TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
+      child: _buildBatteryContent(colorScheme),
     );
   }
 }

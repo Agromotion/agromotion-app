@@ -79,6 +79,10 @@ class WebRTCService {
     });
   }
 
+  /// Liga ao robô e só termina quando a PeerConnection chegar a
+  /// RTCPeerConnectionStateConnected, falhar, ou expirar o timeout interno.
+  /// Em caso de falha, lança uma excepção (em vez de engolir o erro), para
+  /// que o chamador (CameraScreen) saiba mesmo que precisa de tentar de novo.
   Future<void> connect() async {
     AppLogger.info("A INICIAR WEBRTC SERVICE...");
     if (_isDisposed || _isConnecting || isConnected) return;
@@ -87,6 +91,10 @@ class WebRTCService {
     _answerSet = false;
     _processedCandidates.clear();
     _pendingRobotCandidates.clear();
+
+    // Completer que só resolve quando a ligação P2P está mesmo operacional
+    // (ou falha/expira). É isto que dá significado real ao timeout externo.
+    final completer = Completer<void>();
 
     Map<String, dynamic> configuration = {
       "iceServers": [
@@ -130,25 +138,40 @@ class WebRTCService {
             debugPrint(
               "[WebRTC] event.streams vazio. A aplicar fallback stream.",
             );
-            remoteRenderer.srcObject ??= await createLocalMediaStream(
-              'remote_video_fallback',
-            );
-            remoteRenderer.srcObject!.addTrack(event.track);
+            final fallbackStream =
+                remoteRenderer.srcObject ??
+                await createLocalMediaStream('remote_video_fallback');
+            fallbackStream.addTrack(event.track);
+            remoteRenderer.srcObject =
+                fallbackStream; // Reatribuir força o renderer Web a atualizar a tag <video>
           }
         }
       };
 
       _peerConnection!.onConnectionState = (state) {
+        if (_isDisposed) return;
+
         AppLogger.info("[WebRTC] Connection State alterado para: $state");
+
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
           _requestControl();
           _startStatsCollection();
+          // Só importa na primeira vez (handshake inicial). Reconexões
+          // posteriores ao mesmo estado não afetam um completer já resolvido.
+          if (!completer.isCompleted) completer.complete();
         } else if (state ==
                 RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
             state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
             state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
           AppLogger.warning("[WebRTC] Conexão perdida: $state");
           _cleanupFirebaseSession();
+          // Se isto aconteceu ANTES de alguma vez chegarmos a Connected,
+          // o connect() deve falhar em vez de ficar pendurado para sempre.
+          if (!completer.isCompleted) {
+            completer.completeError(
+              Exception('Ligação WebRTC falhou durante o handshake: $state'),
+            );
+          }
         }
       };
 
@@ -171,83 +194,149 @@ class WebRTCService {
         init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
       );
 
-      final offer = await _peerConnection!.createOffer({});
+      final docRef = _db.collection('robots').doc(robotId);
+      final viewerRef = docRef
+          .collection('viewers')
+          .doc(userEmail ?? 'unknown');
+
+      // 1. Limpar candidatos antigos ANTES de gerar a nova offer para evitar race conditions.
+      await viewerRef.set({
+        'app_candidates': [],
+        'robot_candidates': [],
+        'last_handshake': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 2. Criar offer e definir local description (inicia a recolha de ICE candidates imediatamente)
+      final offer = await _peerConnection!.createOffer({
+        'offerToReceiveVideo': 1,
+      });
       await _peerConnection!.setLocalDescription(offer);
 
-      final docRef = _db.collection('robots').doc(robotId);
-      await docRef.update({
+      // 3. Atualizar a nova offer e o email em simultâneo para o robô processar a ligação
+      await viewerRef.update({
         'webrtc_session': {
           'offer': {'sdp': offer.sdp, 'type': offer.type},
           'answer': null,
         },
-        'control.last_handshake_email': userEmail ?? 'unknown',
-        'app_candidates': [],
-        'robot_candidates': [],
-        'last_handshake': FieldValue.serverTimestamp(),
       });
 
       AppLogger.info("[WebRTC] Offer publicada com sucesso no Firestore");
 
-      _signalingSubscription = _db
-          .collection('robots')
-          .doc(robotId)
-          .snapshots()
-          .listen((snapshot) async {
-            if (!snapshot.exists || _isDisposed) return;
+      _signalingSubscription = viewerRef.snapshots().listen((snapshot) async {
+        if (!snapshot.exists || _isDisposed) return;
 
-            final data = snapshot.data()!;
-            final session = data['webrtc_session'];
+        final data = snapshot.data()!;
+        final session = data['webrtc_session'];
 
-            if (session != null && session['answer'] != null && !_answerSet) {
-              _answerSet = true;
-              AppLogger.info("[WebRTC] Answer do robô detetada");
+        if (session != null && session['answer'] != null && !_answerSet) {
+          _answerSet = true;
+          AppLogger.info("[WebRTC] Answer do robô detetada");
 
-              try {
-                await _peerConnection!.setRemoteDescription(
-                  RTCSessionDescription(
-                    session['answer']['sdp'],
-                    session['answer']['type'],
-                  ),
-                );
+          try {
+            await _peerConnection!.setRemoteDescription(
+              RTCSessionDescription(
+                session['answer']['sdp'],
+                session['answer']['type'],
+              ),
+            );
 
-                AppLogger.info("[WebRTC] RemoteDescription definida");
-                await _flushPendingRobotCandidates();
-              } catch (e) {
-                AppLogger.error("[WebRTC] Erro ao aplicar RemoteDescription", e);
-                _answerSet = false;
+            AppLogger.info("[WebRTC] RemoteDescription definida");
+            await _flushPendingRobotCandidates();
+          } catch (e) {
+            AppLogger.error("[WebRTC] Erro ao aplicar RemoteDescription", e);
+            _answerSet = false;
+          }
+        }
+
+        final List? robotCandidates = data['robot_candidates'];
+        if (robotCandidates != null) {
+          for (var c in robotCandidates) {
+            String candidateStr = c['candidate'] ?? '';
+
+            if (candidateStr.isNotEmpty &&
+                !_processedCandidates.contains(candidateStr)) {
+              _processedCandidates.add(candidateStr);
+
+              RTCIceCandidate iceCandidate = RTCIceCandidate(
+                candidateStr,
+                c['sdpMid'] ?? '0',
+                c['sdpMLineIndex'] ?? 0,
+              );
+
+              if (_answerSet &&
+                  _peerConnection?.getRemoteDescription() != null) {
+                await _peerConnection!.addCandidate(iceCandidate);
+              } else {
+                _pendingRobotCandidates.add(iceCandidate);
               }
             }
+          }
+        }
+      });
 
-            final List? robotCandidates = data['robot_candidates'];
-            if (robotCandidates != null) {
-              for (var c in robotCandidates) {
-                String candidateStr = c['candidate'] ?? '';
+      // Só agora esperamos mesmo pela ligação ficar operacional.
+      // Isto é o que dá significado real ao timeout: antes, o Future de
+      // connect() resolvia logo após publicar a offer, sem nunca confirmar
+      // que a ligação P2P chegou a existir.
+      await completer.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException(
+            'Timeout a aguardar ligação WebRTC (15s sem Connected)',
+          );
+        },
+      );
 
-                if (candidateStr.isNotEmpty &&
-                    !_processedCandidates.contains(candidateStr)) {
-                  _processedCandidates.add(candidateStr);
-
-                  RTCIceCandidate iceCandidate = RTCIceCandidate(
-                    candidateStr,
-                    c['sdpMid'] ?? '0',
-                    c['sdpMLineIndex'] ?? 0,
-                  );
-
-                  if (_answerSet &&
-                      _peerConnection?.getRemoteDescription() != null) {
-                    await _peerConnection!.addCandidate(iceCandidate);
-                  } else {
-                    _pendingRobotCandidates.add(iceCandidate);
-                  }
-                }
-              }
-            }
-          });
-    } catch (e) {
+      AppLogger.info("[WebRTC] Ligação estabelecida com sucesso");
+    } catch (e, stackTrace) {
       AppLogger.error("[WebRTC] Erro na conexão", e);
+      await _teardownAfterFailedAttempt();
+      // Propaga o erro: sem isto, quem chama connect() nunca sabe que falhou.
+      Error.throwWithStackTrace(e, stackTrace);
     } finally {
       _isConnecting = false;
     }
+  }
+
+  /// Limpa tudo o que foi criado nesta tentativa falhada, para que a
+  /// próxima chamada a connect() comece de um estado limpo (sem timers,
+  /// subscriptions ou PeerConnections "zombie" presos em memória).
+  Future<void> _teardownAfterFailedAttempt() async {
+    try {
+      await _signalingSubscription?.cancel();
+    } catch (_) {}
+    _signalingSubscription = null;
+
+    try {
+      _dataChannel?.close();
+    } catch (_) {}
+    _dataChannel = null;
+
+    try {
+      await _peerConnection?.close();
+    } catch (_) {}
+    try {
+      _peerConnection?.dispose();
+    } catch (_) {}
+    _peerConnection = null;
+
+    _statsTimer?.cancel();
+    _statsTimer = null;
+
+    _answerSet = false;
+    _processedCandidates.clear();
+    _pendingRobotCandidates.clear();
+
+    try {
+      if (userEmail != null) {
+        await _db
+            .collection('robots')
+            .doc(robotId)
+            .collection('viewers')
+            .doc(userEmail)
+            .delete();
+      }
+    } catch (_) {}
   }
 
   Future<void> _flushPendingRobotCandidates() async {
@@ -344,16 +433,25 @@ class WebRTCService {
       final email = userEmail;
       if (email == null) return;
 
+      // Remove a sessão de WebRTC específica do utilizador
+      await _db
+          .collection('robots')
+          .doc(robotId)
+          .collection('viewers')
+          .doc(email)
+          .delete();
+
+      // Apenas removemos o espectador da fila.
+      // NÃO limpamos a webrtc_session global para não interromper o handshake de outros utilizadores!
+      // (A libertação do active_controller já é feita no _cleanupConnection do CameraScreen)
       await _db.collection('robots').doc(robotId).update({
         // Remove viewer from queue
         'control.viewer_queue': FieldValue.arrayRemove([email]),
-        'app_candidates': [],
-        'robot_candidates': [],
-        'webrtc_session': {'offer': null, 'answer': null},
-        'control.last_handshake_email': FieldValue.delete(),
       });
 
-      AppLogger.info("[WebRTC] Firebase session limpa para $email");
+      AppLogger.info(
+        "[WebRTC] Utilizador $email removido da fila de espectadores",
+      );
     } catch (e) {
       AppLogger.error("[WebRTC] Erro ao limpar session Firebase", e);
     }
