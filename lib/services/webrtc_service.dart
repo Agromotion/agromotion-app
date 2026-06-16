@@ -41,6 +41,8 @@ class WebRTCService {
 
   bool get isDisposed => _isDisposed;
 
+  VoidCallback? onRemoteStreamAvailable;
+
   WebRTCService({required this.remoteRenderer});
 
   void _startSendLoop() {
@@ -145,6 +147,7 @@ class WebRTCService {
             remoteRenderer.srcObject =
                 fallbackStream; // Reatribuir força o renderer Web a atualizar a tag <video>
           }
+          onRemoteStreamAvailable?.call();
         }
       };
 

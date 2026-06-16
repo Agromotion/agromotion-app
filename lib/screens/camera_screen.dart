@@ -38,6 +38,7 @@ class _CameraScreenState extends State<CameraScreen>
   WebRTCService? _webrtcService;
   StreamSubscription? _telemetrySubscription;
   StreamSubscription? _webrtcStatsSubscription;
+  bool _rendererReady = false;
 
   // — UI State —
   bool _showDebug = false;
@@ -210,6 +211,7 @@ class _CameraScreenState extends State<CameraScreen>
 
     setState(() {
       _hasActiveStream = false;
+      _rendererReady = false;
     });
 
     try {
@@ -228,6 +230,12 @@ class _CameraScreenState extends State<CameraScreen>
       // Se chegou aqui, o robô diz que está pronto. Tenta ligar o WebRTC.
       _webrtcService?.dispose();
       _webrtcService = WebRTCService(remoteRenderer: _remoteRenderer);
+
+      _webrtcService!.onRemoteStreamAvailable = () {
+        if (mounted) {
+          setState(() => _rendererReady = true);
+        }
+      };
 
       await _webrtcService!.connect().timeout(const Duration(seconds: 15));
 
@@ -425,16 +433,27 @@ class _CameraScreenState extends State<CameraScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Builder(
               builder: (context) {
+                // Só monta o RTCVideoView quando o srcObject já está definido.
+                // Antes disso, mostra apenas o fundo preto com o loading overlay.
+                if (!_rendererReady) {
+                  return ClipRRect(
+                    borderRadius: kIsWeb
+                        ? BorderRadius.zero
+                        : BorderRadius.circular(24),
+                    child: Container(
+                      color: Colors.black,
+                      child: _buildStreamLoadingOverlay(isFullScreen: false),
+                    ),
+                  );
+                }
+
                 final videoStack = Stack(
                   children: [
                     VideoFeedDisplay(
                       renderer: _remoteRenderer,
                       isFullScreen: false,
                     ),
-
                     _buildStreamLoadingOverlay(isFullScreen: false),
-
-                    // Drum Control só aparece com VÍDEO + PERMISSÃO
                     if (_hasActiveStream && _canControl)
                       Positioned(
                         right: 15,
@@ -446,7 +465,6 @@ class _CameraScreenState extends State<CameraScreen>
                           ),
                         ),
                       ),
-
                     if (_showDebug)
                       Positioned(
                         top: 10,
@@ -456,8 +474,6 @@ class _CameraScreenState extends State<CameraScreen>
                   ],
                 );
 
-                // Na Web o CanvasKit tem problemas a aplicar ClipRRect em cima de tags <video>.
-                // Removemos o clip se estivermos no Browser para impedir o ecrã preto.
                 return kIsWeb
                     ? videoStack
                     : ClipRRect(
