@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -43,6 +44,11 @@ class AgroLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Workaround para evitar o StackOverflowError do CanvasKit compilado em DDC (Web Debug)
+    if (kIsWeb && kDebugMode) {
+      return _buildFallback();
+    }
+
     return SizedBox(
       width: size,
       height: size,

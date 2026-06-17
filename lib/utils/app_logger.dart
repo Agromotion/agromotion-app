@@ -1,17 +1,18 @@
 import 'package:logger/logger.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 class AppLogger {
   static final Logger _logger = Logger(
     printer: PrettyPrinter(
-      methodCount: 2, // Quantidade de chamadas no stacktrace
-      errorMethodCount: 8, // Stacktrace em caso de erro
-      lineLength: 120, // Largura da linha
-      colors: true, // Cores no terminal
-      printEmojis: true, // Emojis para cada nível
-      dateTimeFormat: DateTimeFormat.dateAndTime, // Formato da data/hora
+      methodCount: 2,
+      errorMethodCount: 8,
+      lineLength: 120,
+      colors: true,
+      printEmojis: true,
+      dateTimeFormat: DateTimeFormat.dateAndTime,
     ),
-    // ProductionFilter garante que os logs aparecem no modo Profile/Release no Browser
-    filter: ProductionFilter(),
+    filter: kDebugMode ? DevelopmentFilter() : ProductionFilter(),
+    level: kDebugMode ? null : Level.off,
   );
 
   static void debug(String message) => _logger.d(message);

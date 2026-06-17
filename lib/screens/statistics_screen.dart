@@ -74,67 +74,79 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
     _historySub = _service
         .streamHistoryData(filter.range.start, filter.range.end)
-        .listen((res) {
-          if (!mounted) return;
+        .listen(
+          (res) {
+            if (!mounted) return;
 
-          setState(() {
-            // 1. Receber os dados brutos da base de dados
-            final rawHistory = Map<String, List<FlSpot>>.from(
-              res['history'] ?? {},
-            );
-
-            final tempSpots = rawHistory['temperature'] ?? [];
-            final cpuSpots = rawHistory['cpu'] ?? [];
-
-            // 2. RECALCULA os resumos com a lista GIGANTE REAL (para precisão de 100% no min e max)
-            _summary = {
-              'maxTemp': tempSpots.isEmpty
-                  ? '0'
-                  : tempSpots
-                        .map((s) => s.y)
-                        .reduce((a, b) => a > b ? a : b)
-                        .toStringAsFixed(1),
-              'minTemp': tempSpots.isEmpty
-                  ? '0'
-                  : tempSpots
-                        .map((s) => s.y)
-                        .reduce((a, b) => a < b ? a : b)
-                        .toStringAsFixed(1),
-              'avgCpu': cpuSpots.isEmpty
-                  ? '0'
-                  : (cpuSpots.map((s) => s.y).reduce((a, b) => a + b) /
-                            cpuSpots.length)
-                        .toStringAsFixed(1),
-              'maxCpu': cpuSpots.isEmpty
-                  ? '0'
-                  : cpuSpots
-                        .map((s) => s.y)
-                        .reduce((a, b) => a > b ? a : b)
-                        .toStringAsFixed(1),
-              'docCount': res['docCount']?.toString() ?? '0',
-              'movingPct': res['movingPct']?.toString() ?? '0',
-            };
-
-            // 3. Amostragem (Downsampling) para proteger o CanvasKit na Web contra Stack Overflow
-            _history = rawHistory.map((key, spots) {
-              const int maxPoints =
-                  60; // Número leve e fluído para a renderização Web
-              if (spots.length <= maxPoints) return MapEntry(key, spots);
-
-              final step = spots.length / maxPoints;
-              final sampled = <FlSpot>[];
-              for (double i = 0; i < spots.length; i += step) {
-                sampled.add(spots[i.toInt()]);
+            setState(() {
+              final rawHistory = <String, List<FlSpot>>{};
+              final historyData = res['history'];
+              if (historyData is Map) {
+                historyData.forEach((key, value) {
+                  if (value is Iterable) {
+                    rawHistory[key.toString()] = List<FlSpot>.from(value);
+                  }
+                });
               }
-              return MapEntry(key, sampled);
-            });
 
-            if (firstEmission) {
-              _isLoading = false;
-              firstEmission = false;
+              final tempSpots = rawHistory['temperature'] ?? [];
+              final cpuSpots = rawHistory['cpu'] ?? [];
+
+              _summary = {
+                'maxTemp': tempSpots.isEmpty
+                    ? '0'
+                    : tempSpots
+                          .map((s) => s.y)
+                          .reduce((a, b) => a > b ? a : b)
+                          .toStringAsFixed(1),
+                'minTemp': tempSpots.isEmpty
+                    ? '0'
+                    : tempSpots
+                          .map((s) => s.y)
+                          .reduce((a, b) => a < b ? a : b)
+                          .toStringAsFixed(1),
+                'avgCpu': cpuSpots.isEmpty
+                    ? '0'
+                    : (cpuSpots.map((s) => s.y).reduce((a, b) => a + b) /
+                              cpuSpots.length)
+                          .toStringAsFixed(1),
+                'maxCpu': cpuSpots.isEmpty
+                    ? '0'
+                    : cpuSpots
+                          .map((s) => s.y)
+                          .reduce((a, b) => a > b ? a : b)
+                          .toStringAsFixed(1),
+                'docCount': res['docCount']?.toString() ?? '0',
+                'movingPct': res['movingPct']?.toString() ?? '0',
+              };
+
+              // 3. Amostragem (Downsampling) para proteger o CanvasKit na Web contra Stack Overflow
+              _history = rawHistory.map((key, spots) {
+                const int maxPoints =
+                    60; // Número leve e fluído para a renderização Web
+                if (spots.length <= maxPoints) return MapEntry(key, spots);
+
+                final step = spots.length / maxPoints;
+                final sampled = <FlSpot>[];
+                for (double i = 0; i < spots.length; i += step) {
+                  sampled.add(spots[i.toInt()]);
+                }
+                return MapEntry(key, sampled);
+              });
+
+              if (firstEmission) {
+                _isLoading = false;
+                firstEmission = false;
+              }
+            });
+          },
+          onError: (error) {
+            // Garante que o estado de loading é removido em caso de erro da Stream
+            if (mounted) {
+              setState(() => _isLoading = false);
             }
-          });
-        });
+          },
+        );
   }
 
   List<MetricData> get _metrics => [
