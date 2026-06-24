@@ -27,37 +27,52 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
   late List<bool> _selectedDays;
   final List<String> _daysLabels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
+  // Nomes curtos usados em _getDaysText() — ordem: Seg=0 ... Dom=6
+  static const List<String> _shortNames = [
+    'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom',
+  ];
+
   @override
   void initState() {
     super.initState();
     if (widget.initialData != null) {
-      // Modo Edição: Parse da string "HH:mm"
-      final parts = widget.initialData!['time'].split(':');
+      // Parse da hora "HH:mm"
+      final parts = widget.initialData!['time'].toString().split(':');
       _selectedTime = TimeOfDay(
         hour: int.parse(parts[0]),
         minute: int.parse(parts[1]),
       );
 
-      // Lógica de dias (se "Segunda a Domingo", seleciona todos)
-      bool isAllDays = widget.initialData!['days'] == 'Segunda a Domingo';
-      _selectedDays = List.generate(7, (_) => isAllDays);
+      // Parse dos dias — suporta "Segunda a Domingo" e "Seg, Ter, Sáb, Dom"
+      _selectedDays = _parseDays(widget.initialData!['days']?.toString() ?? '');
     } else {
-      // Modo Criação
       _selectedTime = const TimeOfDay(hour: 8, minute: 0);
       _selectedDays = List.generate(7, (_) => true);
     }
   }
 
+  /// Converte a string guardada no Firestore de volta para a lista de booleans.
+  List<bool> _parseDays(String daysString) {
+    if (daysString == 'Segunda a Domingo') {
+      return List.generate(7, (_) => true);
+    }
+    if (daysString == 'Nenhum dia selecionado' || daysString.isEmpty) {
+      return List.generate(7, (_) => false);
+    }
+    // Divide por vírgula e faz trim de cada token
+    final tokens = daysString.split(',').map((s) => s.trim()).toSet();
+    return List.generate(7, (i) => tokens.contains(_shortNames[i]));
+  }
+
   String _getDaysText() {
-    int count = _selectedDays.where((day) => day).length;
+    final int count = _selectedDays.where((d) => d).length;
     if (count == 7) return 'Segunda a Domingo';
     if (count == 0) return 'Nenhum dia selecionado';
 
-    List<String> shortNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    List<String> activeDays = [];
-    for (int i = 0; i < 7; i++) {
-      if (_selectedDays[i]) activeDays.add(shortNames[i]);
-    }
+    final List<String> activeDays = [
+      for (int i = 0; i < 7; i++)
+        if (_selectedDays[i]) _shortNames[i],
+    ];
     return activeDays.join(', ');
   }
 
@@ -83,6 +98,7 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Handle
           Container(
             width: 40,
             height: 4,
@@ -92,6 +108,7 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+
           Text(
             widget.initialData != null ? 'Editar Horário' : 'Novo Horário',
             style: theme.textTheme.headlineSmall?.copyWith(
@@ -100,6 +117,7 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
           ),
           const SizedBox(height: 32),
 
+          // Seletor de hora
           GestureDetector(
             onTap: () async {
               HapticFeedback.mediumImpact();
@@ -107,9 +125,8 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
                 context: context,
                 initialTime: _selectedTime,
                 builder: (context, child) => MediaQuery(
-                  data: MediaQuery.of(
-                    context,
-                  ).copyWith(alwaysUse24HourFormat: true),
+                  data: MediaQuery.of(context)
+                      .copyWith(alwaysUse24HourFormat: true),
                   child: child!,
                 ),
               );
@@ -120,7 +137,8 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
               decoration: BoxDecoration(
                 color: colorScheme.secondaryContainer.withAlpha(40),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: colorScheme.secondary.withAlpha(30)),
+                border:
+                    Border.all(color: colorScheme.secondary.withAlpha(30)),
               ),
               child: Text(
                 '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
@@ -146,6 +164,7 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
           ),
           const SizedBox(height: 16),
 
+          // Botões dos dias
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(7, (index) {
@@ -188,6 +207,7 @@ class _AddScheduleSheetState extends State<AddScheduleSheet> {
           ),
           const SizedBox(height: 40),
 
+          // Botão guardar
           SizedBox(
             width: double.infinity,
             height: 60,
