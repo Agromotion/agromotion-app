@@ -76,10 +76,13 @@ class TelemetrySnapshot {
 
     // Extrai o mapa de controle
     final controlData = m['control'] as Map<String, dynamic>? ?? {};
+    final statusData = m['status'] as Map<String, dynamic>? ?? {};
 
     // Agora busca o viewer_queue dentro de controlData
     final viewerQueue = controlData['viewer_queue'];
-    final viewerCount = viewerQueue is List ? viewerQueue.length : 0;
+    final viewerCount = viewerQueue is List
+        ? viewerQueue.length
+        : _toInt(statusData['video_client_count']);
 
     return TelemetrySnapshot(
       batteryPercentage: _toInt(data['battery_percentage']),

@@ -50,3 +50,4 @@ assets/service-account.json
 lib/env.dart
 secrets.json
 /debug-info
+android/build/reports/problems/problems-report.html

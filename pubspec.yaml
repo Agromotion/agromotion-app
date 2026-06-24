@@ -2,7 +2,7 @@ name: agromotion
 description: "App de controlo para sistema de alimentação automatizado AgroMotion."
 publish_to: 'none'
 
-version: 1.7.1+1
+version: 1.7.2+1
 
 environment:
   sdk: ^3.8.1
