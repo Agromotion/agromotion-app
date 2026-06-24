@@ -12,15 +12,15 @@ class StatisticsService {
 
   /// Stream que emite sempre que há alterações no histórico dentro do intervalo.
   Stream<Map<String, dynamic>> streamHistoryData(DateTime start, DateTime end) {
-    final String startStr = start.toIso8601String();
-    final String endStr = end.toIso8601String();
+  final Timestamp startTs = Timestamp.fromDate(start);
+  final Timestamp endTs = Timestamp.fromDate(end); 
 
     return _db
         .collection('robots')
         .doc(robotId)
         .collection('telemetry_history')
-        .where('timestamp', isGreaterThanOrEqualTo: startStr)
-        .where('timestamp', isLessThanOrEqualTo: endStr)
+        .where('timestamp', isGreaterThanOrEqualTo: startTs)
+        .where('timestamp', isLessThanOrEqualTo: endTs)
         .orderBy('timestamp')
         .snapshots()
         .map((query) {
@@ -97,8 +97,8 @@ class StatisticsService {
         .collection('robots')
         .doc(robotId)
         .collection('telemetry_history')
-        .where('timestamp', isGreaterThanOrEqualTo: start.toIso8601String())
-        .where('timestamp', isLessThanOrEqualTo: end.toIso8601String())
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .orderBy('timestamp')
         .get();
 
